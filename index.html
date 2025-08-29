@@ -1,0 +1,2855 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AgriTrack Pro - سیستم مدیریت حمل و نقل کشاورزی</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700&display=swap');
+        
+        * {
+            font-family: 'Vazirmatn', sans-serif;
+        }
+        
+        .gradient-bg {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        
+        .card-shadow {
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+        }
+        
+        .pulse-dot {
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.1); opacity: 0.7; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        
+        .notification-slide {
+            animation: slideIn 0.5s ease-out;
+        }
+        
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        
+        .map-container {
+            height: 400px;
+            border-radius: 12px;
+            overflow: hidden;
+        }
+        
+        .status-pending { background: linear-gradient(45deg, #f59e0b, #fbbf24); }
+        .status-active { background: linear-gradient(45deg, #10b981, #34d399); }
+        .status-completed { background: linear-gradient(45deg, #3b82f6, #60a5fa); }
+        
+        .role-card {
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        
+        .role-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.15);
+        }
+        
+        .role-card.selected {
+            border: 3px solid #3b82f6;
+            background: linear-gradient(135deg, #dbeafe, #bfdbfe);
+        }
+
+        .location-marker {
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .location-marker:hover {
+            transform: scale(1.1);
+        }
+
+        .temp-marker {
+            background-color: #ef4444 !important;
+            border: 3px solid white;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+        }
+        
+        .driver-car-marker {
+            font-size: 24px;
+            color: #3b82f6;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+            animation: carPulse 2s infinite;
+        }
+        
+        @keyframes carPulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); }
+        }
+        
+        .route-button {
+            background: linear-gradient(45deg, #3b82f6, #1d4ed8);
+            transition: all 0.3s ease;
+        }
+        
+        .route-button:hover {
+            background: linear-gradient(45deg, #1d4ed8, #1e40af);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(59, 130, 246, 0.4);
+        }
+        
+        .movement-details-popup .leaflet-popup-content-wrapper {
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+        }
+        
+        .movement-details-popup .leaflet-popup-tip {
+            background: white;
+        }
+        
+        .gps-status-indicator {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(16, 185, 129, 0.9);
+            color: white;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: bold;
+            z-index: 1000;
+            animation: pulse 2s infinite;
+        }
+        
+        .gps-status-indicator.error {
+            background: rgba(239, 68, 68, 0.9);
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <!-- Role Selection Screen -->
+    <div id="role-selection-screen" class="min-h-screen gradient-bg flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl card-shadow p-8 w-full max-w-4xl">
+            <div class="text-center mb-12">
+                <div class="bg-gradient-to-br from-blue-500 to-green-500 w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg">
+                    <i class="fas fa-seedling text-white text-4xl"></i>
+                </div>
+                <h1 class="text-4xl font-bold text-gray-800 mb-4">AgriTrack Pro</h1>
+                <p class="text-gray-600 text-lg">سیستم مدیریت حمل و نقل کشاورزی</p>
+                <div class="w-24 h-1 bg-gradient-to-r from-blue-500 to-green-500 mx-auto mt-4 rounded-full"></div>
+            </div>
+            
+            <div class="text-center mb-8">
+                <h2 class="text-2xl font-bold text-gray-800 mb-3">نقش خود را انتخاب کنید</h2>
+                <p class="text-gray-600">برای شروع، نقش مناسب خود را از گزینه‌های زیر انتخاب کنید</p>
+            </div>
+            
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
+                <div class="role-card-large bg-gradient-to-br from-green-50 to-green-100 border-2 border-green-200 rounded-2xl p-8 text-center cursor-pointer transform transition-all duration-300 hover:scale-105 hover:shadow-xl" onclick="selectRoleAndProceed('greenhouse')">
+                    <div class="bg-green-500 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg">
+                        <i class="fas fa-leaf text-white text-3xl"></i>
+                    </div>
+                    <h3 class="text-2xl font-bold text-green-800 mb-4">گلخانه‌دار</h3>
+                    <p class="text-green-700 mb-6">مدیریت و درخواست حمل محصولات کشاورزی از گلخانه به مراکز سورتینگ</p>
+                    <div class="bg-green-500 text-white px-6 py-3 rounded-xl font-semibold">
+                        انتخاب این نقش
+                    </div>
+                </div>
+                
+                <div class="role-card-large bg-gradient-to-br from-blue-50 to-blue-100 border-2 border-blue-200 rounded-2xl p-8 text-center cursor-pointer transform transition-all duration-300 hover:scale-105 hover:shadow-xl" onclick="selectRoleAndProceed('sorting')">
+                    <div class="bg-blue-500 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg">
+                        <i class="fas fa-warehouse text-white text-3xl"></i>
+                    </div>
+                    <h3 class="text-2xl font-bold text-blue-800 mb-4">مرکز سورتینگ</h3>
+                    <p class="text-blue-700 mb-6">مدیریت درخواست‌ها و تخصیص رانندگان مناسب برای حمل محصولات</p>
+                    <div class="bg-blue-500 text-white px-6 py-3 rounded-xl font-semibold">
+                        انتخاب این نقش
+                    </div>
+                </div>
+                
+                <div class="role-card-large bg-gradient-to-br from-orange-50 to-orange-100 border-2 border-orange-200 rounded-2xl p-8 text-center cursor-pointer transform transition-all duration-300 hover:scale-105 hover:shadow-xl" onclick="selectRoleAndProceed('driver')">
+                    <div class="bg-orange-500 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg">
+                        <i class="fas fa-truck text-white text-3xl"></i>
+                    </div>
+                    <h3 class="text-2xl font-bold text-orange-800 mb-4">راننده</h3>
+                    <p class="text-orange-700 mb-6">حمل و نقل محصولات کشاورزی بین گلخانه‌ها و مراکز سورتینگ</p>
+                    <div class="bg-orange-500 text-white px-6 py-3 rounded-xl font-semibold">
+                        انتخاب این نقش
+                    </div>
+                </div>
+            </div>
+            
+            <div class="text-center">
+                <p class="text-gray-600 mb-4">قبلاً ثبت نام کرده‌اید؟</p>
+                <button onclick="showLogin()" class="bg-gray-600 hover:bg-gray-700 text-white px-8 py-3 rounded-xl font-semibold transition-colors">
+                    ورود به سیستم
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Login/Register Screen -->
+    <div id="auth-screen" class="min-h-screen gradient-bg flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-2xl card-shadow p-8 w-full max-w-md">
+            <div class="text-center mb-8">
+                <div class="bg-blue-100 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <i class="fas fa-seedling text-blue-600 text-3xl"></i>
+                </div>
+                <h1 class="text-3xl font-bold text-gray-800">AgriTrack Pro</h1>
+                <p class="text-gray-600 mt-2">سیستم مدیریت حمل و نقل کشاورزی</p>
+            </div>
+            
+            <div id="login-form">
+                <h2 class="text-2xl font-bold mb-6 text-center">ورود به سیستم</h2>
+                <form onsubmit="handleLogin(event)">
+                    <div class="mb-4">
+                        <label class="block text-gray-700 text-sm font-bold mb-2">نام کاربری</label>
+                        <input type="text" id="login-username" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500" required>
+                    </div>
+                    <div class="mb-6">
+                        <label class="block text-gray-700 text-sm font-bold mb-2">رمز عبور</label>
+                        <input type="password" id="login-password" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500" required>
+                    </div>
+                    <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">
+                        ورود
+                    </button>
+                </form>
+                <div class="text-center mt-4">
+                    <button onclick="showPasswordRecovery()" class="text-sm text-blue-600 hover:underline mb-3 block mx-auto">
+                        رمز عبور خود را فراموش کرده‌اید؟
+                    </button>
+                    <p class="text-gray-600">
+                        حساب کاربری ندارید؟ 
+                        <button onclick="showRoleSelection()" class="text-blue-600 hover:underline">ثبت نام</button>
+                    </p>
+                </div>
+            </div>
+            
+            <div id="register-form" class="hidden">
+                <div class="flex items-center mb-6">
+                    <button onclick="showRoleSelection()" class="text-gray-500 hover:text-gray-700 ml-3">
+                        <i class="fas fa-arrow-right"></i>
+                    </button>
+                    <h2 class="text-2xl font-bold">ثبت نام - <span id="selected-role-title" class="text-blue-600"></span></h2>
+                </div>
+                
+                <form onsubmit="handleRegister(event)">
+                    <input type="hidden" id="selected-role">
+                    
+                    <div class="mb-4">
+                        <label class="block text-gray-700 text-sm font-bold mb-2">نام و نام خانوادگی</label>
+                        <input type="text" id="register-fullname" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500" required>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <label class="block text-gray-700 text-sm font-bold mb-2">شماره تلفن (نام کاربری)</label>
+                        <input type="tel" id="register-phone" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500" required>
+                    </div>
+                    
+                    <div class="mb-6">
+                        <label class="block text-gray-700 text-sm font-bold mb-2">رمز عبور</label>
+                        <input type="password" id="register-password" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500" required>
+                    </div>
+                    
+                    <button type="submit" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">
+                        ثبت نام
+                    </button>
+                </form>
+                
+                <p class="text-center mt-4 text-gray-600">
+                    قبلاً ثبت نام کرده‌اید؟ 
+                    <button onclick="showLogin()" class="text-blue-600 hover:underline">ورود</button>
+                </p>
+            </div>
+            
+            <div id="password-recovery-form" class="hidden">
+                <div class="flex items-center mb-6">
+                    <button onclick="showLogin()" class="text-gray-500 hover:text-gray-700 ml-3">
+                        <i class="fas fa-arrow-right"></i>
+                    </button>
+                    <h2 class="text-2xl font-bold">بازیابی رمز عبور</h2>
+                </div>
+                
+                <div class="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                    <div class="flex items-center mb-2">
+                        <i class="fas fa-info-circle text-blue-600 ml-2"></i>
+                        <span class="text-blue-800 font-semibold">راهنمای بازیابی</span>
+                    </div>
+                    <p class="text-blue-700 text-sm">
+                        شماره تلفن خود را وارد کنید. اگر حساب کاربری وجود داشته باشد، رمز عبور جدید برای شما تولید و نمایش داده می‌شود.
+                    </p>
+                </div>
+                
+                <form onsubmit="handlePasswordRecovery(event)">
+                    <div class="mb-4">
+                        <label class="block text-gray-700 text-sm font-bold mb-2">شماره تلفن (نام کاربری)</label>
+                        <input type="tel" id="recovery-phone" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500" required placeholder="09xxxxxxxxx">
+                    </div>
+                    
+                    <button type="submit" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">
+                        <i class="fas fa-key ml-2"></i>
+                        بازیابی رمز عبور
+                    </button>
+                </form>
+                
+                <div id="recovery-result" class="mt-4 hidden">
+                    <div class="p-4 bg-green-50 border border-green-200 rounded-lg">
+                        <div class="flex items-center mb-2">
+                            <i class="fas fa-check-circle text-green-600 ml-2"></i>
+                            <span class="text-green-800 font-semibold">رمز عبور جدید</span>
+                        </div>
+                        <div class="bg-white p-3 rounded border border-green-300 mb-3">
+                            <div class="text-center">
+                                <span class="text-gray-600 text-sm">رمز عبور جدید شما:</span>
+                                <div id="new-password" class="text-2xl font-bold text-green-700 mt-2 font-mono tracking-wider"></div>
+                            </div>
+                        </div>
+                        <p class="text-green-700 text-sm mb-3">
+                            <i class="fas fa-exclamation-triangle ml-1"></i>
+                            لطفاً این رمز عبور را یادداشت کرده و در جای امنی نگهداری کنید.
+                        </p>
+                        <button onclick="showLogin()" class="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-lg">
+                            ورود با رمز عبور جدید
+                        </button>
+                    </div>
+                </div>
+                
+                <p class="text-center mt-4 text-gray-600">
+                    رمز عبور خود را به یاد آوردید؟ 
+                    <button onclick="showLogin()" class="text-blue-600 hover:underline">ورود</button>
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main App -->
+    <div id="main-app" class="hidden">
+        <!-- Header -->
+        <header class="gradient-bg text-white shadow-lg">
+            <div class="container mx-auto px-4 py-4">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center space-x-4 space-x-reverse">
+                        <div class="bg-white/20 p-3 rounded-xl">
+                            <i class="fas fa-seedling text-2xl"></i>
+                        </div>
+                        <div>
+                            <h1 class="text-2xl font-bold">AgriTrack Pro</h1>
+                            <p class="text-white/80 text-sm" id="user-info">خوش آمدید</p>
+                        </div>
+                    </div>
+                    <div class="flex items-center space-x-4 space-x-reverse">
+                        <button onclick="showNotifications()" class="bg-white/20 hover:bg-white/30 px-4 py-2 rounded-lg transition-all relative">
+                            <i class="fas fa-bell ml-2"></i>
+                            اعلان‌ها
+                            <span id="notification-badge" class="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center hidden">0</span>
+                        </button>
+                        <button onclick="logout()" class="bg-white/20 hover:bg-white/30 px-4 py-2 rounded-lg transition-all">
+                            <i class="fas fa-sign-out-alt ml-2"></i>
+                            خروج
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Greenhouse Panel -->
+        <div id="greenhouse-panel" class="panel hidden">
+            <div class="container mx-auto px-4 py-6">
+                <!-- Map Section -->
+                <div class="bg-white rounded-xl card-shadow p-6 mb-6">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-xl font-bold">نقشه و موقعیت</h3>
+                        <div class="flex items-center space-x-2 space-x-reverse">
+                            <div class="flex bg-gray-100 rounded-lg p-1">
+                                <button onclick="switchMapLayer('greenhouse-map', 'street')" id="greenhouse-street-btn" class="px-3 py-1 rounded text-sm bg-white shadow-sm">
+                                    <i class="fas fa-map ml-1"></i>
+                                    معمولی
+                                </button>
+                                <button onclick="switchMapLayer('greenhouse-map', 'satellite')" id="greenhouse-satellite-btn" class="px-3 py-1 rounded text-sm">
+                                    <i class="fas fa-satellite ml-1"></i>
+                                    ماهواره‌ای
+                                </button>
+                            </div>
+                            <button onclick="toggleLocationEdit()" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg text-sm">
+                                <i class="fas fa-map-marker-alt"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div id="greenhouse-map" class="map-container"></div>
+                    <div id="location-controls" class="mt-4 hidden">
+                        <div class="flex justify-end space-x-2 space-x-reverse">
+                            <button onclick="cancelLocationEdit()" class="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg text-sm">
+                                انصراف
+                            </button>
+                            <button onclick="saveLocationEdit()" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm">
+                                ذخیره موقعیت
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Request Form -->
+                <div class="bg-white rounded-xl card-shadow p-6 mb-6">
+                    <h3 class="text-xl font-bold mb-6">درخواست جدید</h3>
+                    
+                    <form onsubmit="submitRequest(event)">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <label class="block text-gray-700 text-sm font-bold mb-2">نوع درخواست</label>
+                                <select id="request-type" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500" required>
+                                    <option value="">انتخاب کنید</option>
+                                    <option value="empty">سبد خالی</option>
+                                    <option value="full">سبد پر</option>
+                                </select>
+                            </div>
+                            
+                            <div>
+                                <label class="block text-gray-700 text-sm font-bold mb-2">تعداد سبد</label>
+                                <input type="number" id="request-quantity" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500" min="1" required>
+                            </div>
+                            
+                            <div>
+                                <label class="block text-gray-700 text-sm font-bold mb-2">نام مرکز سورتینگ</label>
+                                <select id="sorting-center" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500" required>
+                                    <option value="">انتخاب کنید</option>
+                                </select>
+                            </div>
+                            
+                            <div>
+                                <label class="block text-gray-700 text-sm font-bold mb-2">توضیحات</label>
+                                <input type="text" id="request-description" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:border-blue-500" placeholder="نوع محصول، ویژگی‌های خاص و...">
+                            </div>
+                        </div>
+                        
+                        <button type="submit" class="mt-6 bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg font-semibold transition-colors">
+                            <i class="fas fa-paper-plane ml-2"></i>
+                            ارسال درخواست
+                        </button>
+                    </form>
+                </div>
+                
+                <!-- Active Requests -->
+                <div class="bg-white rounded-xl card-shadow p-6 mb-6">
+                    <h3 class="text-xl font-bold mb-6">درخواست‌های فعال</h3>
+                    <div id="greenhouse-active-requests" class="space-y-4">
+                        <p class="text-gray-500 text-center py-8">درخواست فعالی وجود ندارد</p>
+                    </div>
+                </div>
+                
+                <!-- Daily Reports -->
+                <div class="bg-white rounded-xl card-shadow p-6">
+                    <div class="flex items-center justify-between mb-6">
+                        <h3 class="text-xl font-bold">گزارش روزانه</h3>
+                        <div class="flex space-x-2 space-x-reverse">
+                            <input type="date" id="greenhouse-date-filter" class="px-3 py-2 border rounded-lg">
+                            <button onclick="downloadGreenhouseReport()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg">
+                                <i class="fas fa-download ml-1"></i>
+                                دانلود
+                            </button>
+                        </div>
+                    </div>
+                    <div id="greenhouse-reports" class="overflow-x-auto">
+                        <table class="w-full text-sm">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-4 py-2 text-right">تاریخ</th>
+                                    <th class="px-4 py-2 text-right">نوع</th>
+                                    <th class="px-4 py-2 text-right">تعداد</th>
+                                    <th class="px-4 py-2 text-right">راننده</th>
+                                    <th class="px-4 py-2 text-right">وضعیت</th>
+                                </tr>
+                            </thead>
+                            <tbody id="greenhouse-reports-body">
+                                <tr>
+                                    <td colspan="5" class="px-4 py-8 text-center text-gray-500">گزارشی وجود ندارد</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sorting Panel -->
+        <div id="sorting-panel" class="panel hidden">
+            <div class="container mx-auto px-4 py-6">
+                <!-- Map Section -->
+                <div class="bg-white rounded-xl card-shadow p-6 mb-6">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-xl font-bold">نقشه و موقعیت</h3>
+                        <div class="flex items-center space-x-2 space-x-reverse">
+                            <div class="flex bg-gray-100 rounded-lg p-1">
+                                <button onclick="switchMapLayer('sorting-map', 'street')" id="sorting-street-btn" class="px-3 py-1 rounded text-sm bg-white shadow-sm">
+                                    <i class="fas fa-map ml-1"></i>
+                                    معمولی
+                                </button>
+                                <button onclick="switchMapLayer('sorting-map', 'satellite')" id="sorting-satellite-btn" class="px-3 py-1 rounded text-sm">
+                                    <i class="fas fa-satellite ml-1"></i>
+                                    ماهواره‌ای
+                                </button>
+                            </div>
+                            <button onclick="toggleLocationEdit()" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg text-sm">
+                                <i class="fas fa-map-marker-alt"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div id="sorting-map" class="map-container"></div>
+                    <div id="location-controls-sorting" class="mt-4 hidden">
+                        <div class="flex justify-end space-x-2 space-x-reverse">
+                            <button onclick="cancelLocationEdit()" class="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg text-sm">
+                                انصراف
+                            </button>
+                            <button onclick="saveLocationEdit()" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm">
+                                ذخیره موقعیت
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Pending Requests -->
+                <div class="bg-white rounded-xl card-shadow p-6 mb-6">
+                    <h3 class="text-xl font-bold mb-6">درخواست‌های در انتظار</h3>
+                    <div id="sorting-pending-requests" class="space-y-4">
+                        <p class="text-gray-500 text-center py-8">درخواستی در انتظار نیست</p>
+                    </div>
+                </div>
+                
+                <!-- Available Drivers -->
+                <div class="bg-white rounded-xl card-shadow p-6 mb-6">
+                    <h3 class="text-xl font-bold mb-6">رانندگان در دسترس</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <h4 class="font-semibold mb-4 text-green-600">رانندگان سبد خالی</h4>
+                            <div id="empty-basket-drivers" class="space-y-3">
+                                <p class="text-gray-500 text-center py-4">راننده‌ای در دسترس نیست</p>
+                            </div>
+                        </div>
+                        <div>
+                            <h4 class="font-semibold mb-4 text-blue-600">رانندگان بارگیری</h4>
+                            <div id="loading-drivers" class="space-y-3">
+                                <p class="text-gray-500 text-center py-4">راننده‌ای در دسترس نیست</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Daily Reports -->
+                <div class="bg-white rounded-xl card-shadow p-6">
+                    <div class="flex items-center justify-between mb-6">
+                        <h3 class="text-xl font-bold">گزارش روزانه</h3>
+                        <div class="flex space-x-2 space-x-reverse">
+                            <select id="sorting-filter-type" class="px-3 py-2 border rounded-lg">
+                                <option value="">همه</option>
+                                <option value="greenhouse">گلخانه</option>
+                                <option value="driver">راننده</option>
+                            </select>
+                            <input type="text" id="sorting-filter-name" placeholder="نام کاربری" class="px-3 py-2 border rounded-lg">
+                            <input type="date" id="sorting-date-filter" class="px-3 py-2 border rounded-lg">
+                            <button onclick="downloadSortingReport()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg">
+                                <i class="fas fa-download ml-1"></i>
+                                دانلود
+                            </button>
+                        </div>
+                    </div>
+                    <div id="sorting-reports" class="overflow-x-auto">
+                        <table class="w-full text-sm">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-4 py-2 text-right">تاریخ</th>
+                                    <th class="px-4 py-2 text-right">گلخانه</th>
+                                    <th class="px-4 py-2 text-right">راننده</th>
+                                    <th class="px-4 py-2 text-right">نوع</th>
+                                    <th class="px-4 py-2 text-right">تعداد</th>
+                                    <th class="px-4 py-2 text-right">وضعیت</th>
+                                </tr>
+                            </thead>
+                            <tbody id="sorting-reports-body">
+                                <tr>
+                                    <td colspan="6" class="px-4 py-8 text-center text-gray-500">گزارشی وجود ندارد</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Driver Panel -->
+        <div id="driver-panel" class="panel hidden">
+            <div class="container mx-auto px-4 py-6">
+                <!-- Map Section -->
+                <div class="bg-white rounded-xl card-shadow p-6 mb-6">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-xl font-bold">نقشه و موقعیت</h3>
+                        <div class="flex items-center space-x-2 space-x-reverse">
+                            <div class="flex bg-gray-100 rounded-lg p-1">
+                                <button onclick="switchMapLayer('driver-main-map', 'street')" id="driver-street-btn" class="px-3 py-1 rounded text-sm bg-white shadow-sm">
+                                    <i class="fas fa-map ml-1"></i>
+                                    معمولی
+                                </button>
+                                <button onclick="switchMapLayer('driver-main-map', 'satellite')" id="driver-satellite-btn" class="px-3 py-1 rounded text-sm">
+                                    <i class="fas fa-satellite ml-1"></i>
+                                    ماهواره‌ای
+                                </button>
+                            </div>
+                            <button onclick="toggleLocationEdit()" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg text-sm">
+                                <i class="fas fa-map-marker-alt"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div id="driver-main-map" class="map-container"></div>
+                    <div id="location-controls-driver" class="mt-4 hidden">
+                        <div class="flex justify-end space-x-2 space-x-reverse">
+                            <button onclick="cancelLocationEdit()" class="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg text-sm">
+                                انصراف
+                            </button>
+                            <button onclick="saveLocationEdit()" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm">
+                                ذخیره موقعیت
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Driver Status & Settings -->
+                <div class="bg-white rounded-xl card-shadow p-6 mb-6">
+                    <div class="flex items-center justify-between mb-6">
+                        <h3 class="text-xl font-bold">وضعیت و تنظیمات راننده</h3>
+                        <div class="flex items-center">
+                            <div class="pulse-dot w-3 h-3 bg-green-500 rounded-full ml-2"></div>
+                            <span class="text-green-600 font-semibold">آنلاین</span>
+                        </div>
+                    </div>
+                    
+                    <!-- Daily Status Report -->
+                    <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+                        <h4 class="font-semibold mb-4">گزارش روزانه وضعیت</h4>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-gray-700 text-sm font-bold mb-2">تعداد سبد خالی موجود</label>
+                                <div class="flex items-center space-x-2 space-x-reverse">
+                                    <button onclick="adjustEmptyBaskets(-1)" class="bg-red-500 hover:bg-red-600 text-white w-8 h-8 rounded-full">-</button>
+                                    <input type="number" id="empty-baskets-count" class="w-20 px-2 py-1 border rounded text-center" min="0" value="0">
+                                    <button onclick="adjustEmptyBaskets(1)" class="bg-green-500 hover:bg-green-600 text-white w-8 h-8 rounded-full">+</button>
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-gray-700 text-sm font-bold mb-2">ظرفیت بارگیری</label>
+                                <div class="flex items-center space-x-2 space-x-reverse">
+                                    <button onclick="adjustLoadCapacity(-1)" class="bg-red-500 hover:bg-red-600 text-white w-8 h-8 rounded-full">-</button>
+                                    <input type="number" id="load-capacity" class="w-20 px-2 py-1 border rounded text-center" min="0" value="0">
+                                    <button onclick="adjustLoadCapacity(1)" class="bg-green-500 hover:bg-green-600 text-white w-8 h-8 rounded-full">+</button>
+                                </div>
+                            </div>
+                        </div>
+                        <button onclick="submitDailyStatus()" class="mt-4 bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg">
+                            <i class="fas fa-paper-plane ml-2"></i>
+                            ثبت وضعیت روزانه
+                        </button>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div class="bg-gray-50 p-4 rounded-lg text-center">
+                            <p class="text-2xl font-bold text-blue-600" id="driver-empty-baskets-display">0</p>
+                            <p class="text-gray-600 text-sm">سبد خالی موجود</p>
+                        </div>
+                        <div class="bg-gray-50 p-4 rounded-lg text-center">
+                            <p class="text-2xl font-bold text-green-600" id="driver-load-capacity-display">0</p>
+                            <p class="text-gray-600 text-sm">ظرفیت بارگیری</p>
+                        </div>
+                        <div class="bg-gray-50 p-4 rounded-lg text-center">
+                            <p class="text-2xl font-bold text-orange-600" id="driver-trips-count">0</p>
+                            <p class="text-gray-600 text-sm">سفرهای امروز</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Pending Requests -->
+                <div class="bg-white rounded-xl card-shadow p-6 mb-6">
+                    <h3 class="text-xl font-bold mb-6">درخواست‌های دریافتی</h3>
+                    <div id="driver-pending-requests" class="space-y-4">
+                        <p class="text-gray-500 text-center py-8">درخواستی دریافت نکرده‌اید</p>
+                    </div>
+                </div>
+                
+                <!-- Active Mission -->
+                <div class="bg-white rounded-xl card-shadow p-6 mb-6">
+                    <h3 class="text-xl font-bold mb-6">ماموریت فعال</h3>
+                    <div id="driver-active-mission">
+                        <p class="text-gray-500 text-center py-8">ماموریت فعالی ندارید</p>
+                    </div>
+                </div>
+                
+                <!-- Navigation Map -->
+                <div class="bg-white rounded-xl card-shadow p-6 mb-6" id="driver-navigation" style="display: none;">
+                    <div class="flex items-center justify-between mb-6">
+                        <h3 class="text-xl font-bold">مسیریابی داخلی</h3>
+                        <div class="flex items-center space-x-2 space-x-reverse">
+                            <div class="flex items-center bg-green-100 px-3 py-1 rounded-full">
+                                <div class="w-2 h-2 bg-green-500 rounded-full pulse-dot ml-2"></div>
+                                <span class="text-green-700 text-sm">فعال</span>
+                            </div>
+                            <button onclick="toggleInternalNavigation()" class="bg-gray-500 hover:bg-gray-600 text-white px-3 py-1 rounded text-sm">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div id="driver-map" class="map-container"></div>
+                    <div class="mt-4 bg-blue-50 border border-blue-200 rounded-lg p-4">
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center">
+                                <i class="fas fa-car text-blue-600 ml-2"></i>
+                                <span class="text-sm text-blue-800">موقعیت شما به صورت زنده به‌روزرسانی می‌شود</span>
+                            </div>
+                            <div class="flex items-center space-x-2 space-x-reverse">
+                                <span class="text-xs text-blue-600">آخرین به‌روزرسانی:</span>
+                                <span id="last-update-time" class="text-xs text-blue-800 font-semibold">الان</span>
+                            </div>
+                        </div>
+                        <div class="mt-2 text-xs text-blue-600">
+                            🗺️ مسیر بر اساس جاده‌های واقعی محاسبه می‌شود
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Daily Reports -->
+                <div class="bg-white rounded-xl card-shadow p-6">
+                    <div class="flex items-center justify-between mb-6">
+                        <h3 class="text-xl font-bold">گزارش روزانه</h3>
+                        <div class="flex space-x-2 space-x-reverse">
+                            <input type="date" id="driver-date-filter" class="px-3 py-2 border rounded-lg">
+                            <button onclick="downloadDriverReport()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg">
+                                <i class="fas fa-download ml-1"></i>
+                                دانلود
+                            </button>
+                        </div>
+                    </div>
+                    <div id="driver-reports" class="overflow-x-auto">
+                        <table class="w-full text-sm">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-4 py-2 text-right">تاریخ</th>
+                                    <th class="px-4 py-2 text-right">گلخانه</th>
+                                    <th class="px-4 py-2 text-right">نوع</th>
+                                    <th class="px-4 py-2 text-right">تعداد</th>
+                                    <th class="px-4 py-2 text-right">وضعیت</th>
+                                </tr>
+                            </thead>
+                            <tbody id="driver-reports-body">
+                                <tr>
+                                    <td colspan="5" class="px-4 py-8 text-center text-gray-500">گزارشی وجود ندارد</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notification Modal -->
+    <div id="notification-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-[9999]">
+        <div class="bg-white rounded-xl p-6 w-full max-w-md mx-4">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-xl font-bold">اعلان‌ها</h3>
+                <button onclick="closeNotifications()" class="text-gray-500 hover:text-gray-700">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div id="notifications-list" class="space-y-3 max-h-96 overflow-y-auto">
+                <p class="text-gray-500 text-center py-4">اعلانی وجود ندارد</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="fixed top-4 left-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg notification-slide hidden z-50">
+        <div class="flex items-center">
+            <i class="fas fa-check-circle ml-2"></i>
+            <span id="toast-message">عملیات با موفقیت انجام شد</span>
+        </div>
+    </div>
+
+    <script>
+        // Global Variables
+        let currentUser = null;
+        let users = JSON.parse(localStorage.getItem('agritrack_users') || '[]');
+        let requests = JSON.parse(localStorage.getItem('agritrack_requests') || '[]');
+        let notifications = JSON.parse(localStorage.getItem('agritrack_notifications') || '[]');
+        let driverMap = null;
+        let greenhouseMap = null;
+        let sortingMap = null;
+        let driverMainMap = null;
+        let selectedLocation = null;
+        let tempSelectedLocation = null;
+        let isLocationEditMode = false;
+        let tempMarker = null;
+        let driverLocationMarker = null;
+        let routeControl = null;
+        let driverLocationWatcher = null;
+
+        // Map layer management
+        let mapLayers = {};
+
+        function switchMapLayer(mapId, layerType) {
+            const map = getMapInstance(mapId);
+            if (!map) return;
+            
+            // Remove existing layers
+            map.eachLayer(function(layer) {
+                if (layer instanceof L.TileLayer) {
+                    map.removeLayer(layer);
+                }
+            });
+            
+            // Add new layer
+            let newLayer;
+            if (layerType === 'satellite') {
+                newLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+                    attribution: '© Esri'
+                });
+            } else {
+                newLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '© OpenStreetMap contributors'
+                });
+            }
+            
+            newLayer.addTo(map);
+            
+            // Update button states
+            const prefix = mapId.replace('-map', '');
+            document.getElementById(`${prefix}-street-btn`).className = layerType === 'street' ? 
+                'px-3 py-1 rounded text-sm bg-white shadow-sm' : 'px-3 py-1 rounded text-sm';
+            document.getElementById(`${prefix}-satellite-btn`).className = layerType === 'satellite' ? 
+                'px-3 py-1 rounded text-sm bg-white shadow-sm' : 'px-3 py-1 rounded text-sm';
+        }
+
+        function getMapInstance(mapId) {
+            switch(mapId) {
+                case 'greenhouse-map': return greenhouseMap;
+                case 'sorting-map': return sortingMap;
+                case 'driver-main-map': return driverMainMap;
+                default: return null;
+            }
+        }
+
+        // Initialize App
+        document.addEventListener('DOMContentLoaded', function() {
+            // Check if user is logged in
+            const savedUser = localStorage.getItem('agritrack_current_user');
+            if (savedUser) {
+                currentUser = JSON.parse(savedUser);
+                showMainApp();
+            }
+            
+            // Set today's date as default
+            const today = new Date().toISOString().split('T')[0];
+            document.querySelectorAll('input[type="date"]').forEach(input => {
+                input.value = today;
+            });
+        });
+
+        // Authentication Functions
+        function showRoleSelection() {
+            document.getElementById('auth-screen').classList.add('hidden');
+            document.getElementById('role-selection-screen').classList.remove('hidden');
+        }
+
+        function selectRoleAndProceed(role) {
+            document.getElementById('role-selection-screen').classList.add('hidden');
+            document.getElementById('auth-screen').classList.remove('hidden');
+            document.getElementById('login-form').classList.add('hidden');
+            document.getElementById('register-form').classList.remove('hidden');
+            
+            // Set selected role
+            document.getElementById('selected-role').value = role;
+            
+            // Update role title
+            const roleTitles = {
+                greenhouse: 'گلخانه‌دار',
+                sorting: 'مرکز سورتینگ',
+                driver: 'راننده'
+            };
+            document.getElementById('selected-role-title').textContent = roleTitles[role];
+        }
+
+        function showLogin() {
+            document.getElementById('role-selection-screen').classList.add('hidden');
+            document.getElementById('auth-screen').classList.remove('hidden');
+            document.getElementById('register-form').classList.add('hidden');
+            document.getElementById('password-recovery-form').classList.add('hidden');
+            document.getElementById('login-form').classList.remove('hidden');
+            
+            // Reset recovery form
+            document.getElementById('recovery-result').classList.add('hidden');
+            document.getElementById('recovery-phone').value = '';
+        }
+
+        function showPasswordRecovery() {
+            document.getElementById('login-form').classList.add('hidden');
+            document.getElementById('register-form').classList.add('hidden');
+            document.getElementById('password-recovery-form').classList.remove('hidden');
+            
+            // Reset recovery form
+            document.getElementById('recovery-result').classList.add('hidden');
+            document.getElementById('recovery-phone').value = '';
+        }
+
+        function handleRegister(event) {
+            event.preventDefault();
+            
+            const role = document.getElementById('selected-role').value;
+            const fullname = document.getElementById('register-fullname').value;
+            const phone = document.getElementById('register-phone').value;
+            const password = document.getElementById('register-password').value;
+            
+            if (!role) {
+                showToast('لطفاً نقش خود را انتخاب کنید', 'error');
+                return;
+            }
+            
+            // Check if phone number exists
+            if (users.find(u => u.username === phone)) {
+                showToast('این شماره تلفن قبلاً ثبت شده است', 'error');
+                return;
+            }
+            
+            // Use default location for greenhouse and sorting, but not for drivers
+            let userLocation = null;
+            if (role !== 'driver') {
+                userLocation = { lat: 35.6892, lng: 51.3890 }; // Tehran center for non-drivers
+            }
+            
+            const newUser = {
+                id: Date.now(),
+                role,
+                fullname,
+                username: phone, // Use phone as username
+                phone,
+                password,
+                location: userLocation,
+                createdAt: new Date().toISOString()
+            };
+            
+            // Add driver specific data
+            if (role === 'driver') {
+                newUser.emptyBaskets = 0;
+                newUser.loadCapacity = 0;
+                newUser.dailyStatusSubmitted = false;
+            }
+            
+            users.push(newUser);
+            localStorage.setItem('agritrack_users', JSON.stringify(users));
+            
+            showToast('ثبت نام با موفقیت انجام شد. می‌توانید موقعیت خود را بعداً تغییر دهید', 'success');
+            showLogin();
+        }
+
+        function handleLogin(event) {
+            event.preventDefault();
+            
+            const username = document.getElementById('login-username').value;
+            const password = document.getElementById('login-password').value;
+            
+            const user = users.find(u => u.username === username && u.password === password);
+            
+            if (user) {
+                currentUser = user;
+                localStorage.setItem('agritrack_current_user', JSON.stringify(user));
+                showMainApp();
+            } else {
+                showToast('نام کاربری یا رمز عبور اشتباه است', 'error');
+            }
+        }
+
+        function handlePasswordRecovery(event) {
+            event.preventDefault();
+            
+            const phone = document.getElementById('recovery-phone').value;
+            
+            // Find user by phone number
+            const user = users.find(u => u.username === phone || u.phone === phone);
+            
+            if (user) {
+                // Generate new secure password
+                const newPassword = generateSecurePassword();
+                
+                // Update user password
+                user.password = newPassword;
+                
+                // Update in users array
+                const userIndex = users.findIndex(u => u.id === user.id);
+                if (userIndex !== -1) {
+                    users[userIndex] = user;
+                    localStorage.setItem('agritrack_users', JSON.stringify(users));
+                }
+                
+                // Show new password to user
+                document.getElementById('new-password').textContent = newPassword;
+                document.getElementById('recovery-result').classList.remove('hidden');
+                
+                showToast('رمز عبور جدید تولید شد', 'success');
+            } else {
+                showToast('کاربری با این شماره تلفن یافت نشد', 'error');
+            }
+        }
+
+        function generateSecurePassword() {
+            // Generate a secure 8-character password with numbers and letters
+            const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
+            let password = '';
+            
+            for (let i = 0; i < 8; i++) {
+                password += chars.charAt(Math.floor(Math.random() * chars.length));
+            }
+            
+            return password;
+        }
+
+        function logout() {
+            localStorage.removeItem('agritrack_current_user');
+            currentUser = null;
+            
+            // Clear all form fields
+            document.querySelectorAll('input').forEach(input => {
+                if (input.type !== 'button' && input.type !== 'submit') {
+                    input.value = '';
+                }
+            });
+            document.querySelectorAll('select').forEach(select => {
+                select.selectedIndex = 0;
+            });
+            document.querySelectorAll('textarea').forEach(textarea => {
+                textarea.value = '';
+            });
+            
+            document.getElementById('main-app').classList.add('hidden');
+            document.getElementById('role-selection-screen').classList.remove('hidden');
+        }
+
+        // Location and Map Functions
+        function toggleLocationEdit() {
+            // Drivers cannot manually edit location - they use GPS
+            if (currentUser.role === 'driver') {
+                showToast('رانندگان از موقعیت GPS استفاده می‌کنند و نمی‌توانند موقعیت را دستی تغییر دهند', 'info');
+                return;
+            }
+            
+            isLocationEditMode = !isLocationEditMode;
+            
+            if (isLocationEditMode) {
+                // Show controls based on current panel
+                if (currentUser.role === 'greenhouse') {
+                    document.getElementById('location-controls').classList.remove('hidden');
+                } else if (currentUser.role === 'sorting') {
+                    document.getElementById('location-controls-sorting').classList.remove('hidden');
+                }
+                
+                // Enable map click for location selection
+                const currentMap = getCurrentMap();
+                if (currentMap) {
+                    currentMap.on('click', onMapClick);
+                    showToast('روی نقشه کلیک کنید تا موقعیت جدید را انتخاب کنید', 'info');
+                }
+            } else {
+                cancelLocationEdit();
+            }
+        }
+
+        function getCurrentMap() {
+            if (currentUser.role === 'greenhouse') return greenhouseMap;
+            if (currentUser.role === 'sorting') return sortingMap;
+            if (currentUser.role === 'driver') return driverMainMap;
+            return null;
+        }
+
+        function onMapClick(e) {
+            if (!isLocationEditMode) return;
+            
+            const currentMap = getCurrentMap();
+            if (!currentMap) return;
+            
+            // Remove previous temp marker
+            if (tempMarker) {
+                currentMap.removeLayer(tempMarker);
+            }
+            
+            // Add new temp marker
+            tempMarker = L.marker([e.latlng.lat, e.latlng.lng], {
+                icon: L.divIcon({
+                    className: 'temp-marker',
+                    html: '<div style="background-color: #ef4444; width: 25px; height: 25px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.4);"></div>',
+                    iconSize: [25, 25],
+                    iconAnchor: [12, 12]
+                })
+            }).addTo(currentMap);
+            
+            tempSelectedLocation = { lat: e.latlng.lat, lng: e.latlng.lng };
+        }
+
+        function cancelLocationEdit() {
+            isLocationEditMode = false;
+            
+            // Hide all controls
+            document.getElementById('location-controls').classList.add('hidden');
+            document.getElementById('location-controls-sorting').classList.add('hidden');
+            document.getElementById('location-controls-driver').classList.add('hidden');
+            
+            // Remove temp marker
+            const currentMap = getCurrentMap();
+            if (currentMap && tempMarker) {
+                currentMap.removeLayer(tempMarker);
+                tempMarker = null;
+            }
+            
+            // Remove click handler
+            if (currentMap) {
+                currentMap.off('click', onMapClick);
+            }
+            
+            tempSelectedLocation = null;
+        }
+
+        function saveLocationEdit() {
+            if (!tempSelectedLocation) {
+                showToast('لطفاً موقعیت جدید را روی نقشه انتخاب کنید', 'error');
+                return;
+            }
+            
+            currentUser.location = tempSelectedLocation;
+            
+            // Update in users array
+            const userIndex = users.findIndex(u => u.id === currentUser.id);
+            if (userIndex !== -1) {
+                users[userIndex] = currentUser;
+                localStorage.setItem('agritrack_users', JSON.stringify(users));
+                localStorage.setItem('agritrack_current_user', JSON.stringify(currentUser));
+            }
+            
+            showToast('موقعیت با موفقیت به‌روزرسانی شد', 'success');
+            cancelLocationEdit();
+            
+            // Refresh maps
+            initializePanelMaps();
+        }
+
+        function initializePanelMaps() {
+            if (currentUser.role === 'greenhouse') {
+                initializeGreenhouseMap();
+            } else if (currentUser.role === 'sorting') {
+                initializeSortingMap();
+            } else if (currentUser.role === 'driver') {
+                initializeDriverMainMap();
+            }
+        }
+
+        function initializeGreenhouseMap() {
+            setTimeout(() => {
+                if (greenhouseMap) {
+                    greenhouseMap.remove();
+                }
+                
+                greenhouseMap = L.map('greenhouse-map').setView([currentUser.location.lat, currentUser.location.lng], 13);
+                
+                // Add layers
+                const streetLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '© OpenStreetMap contributors'
+                });
+                
+                streetLayer.addTo(greenhouseMap);
+                
+                // Add user marker with professional icon
+                L.marker([currentUser.location.lat, currentUser.location.lng], {
+                    icon: getMarkerIcon('greenhouse', currentUser, false)
+                })
+                    .addTo(greenhouseMap)
+                    .bindPopup(`
+                        <div style="text-align: center; min-width: 150px;">
+                            <div style="font-weight: bold; color: #1f2937; margin-bottom: 4px;">
+                                ${currentUser.fullname}
+                            </div>
+                            <div style="color: #6b7280; font-size: 12px;">
+                                گلخانه‌دار - موقعیت شما
+                            </div>
+                        </div>
+                    `)
+                    .openPopup();
+                
+                // Add other users
+                addOtherUsersToMap(greenhouseMap);
+            }, 100);
+        }
+
+        function initializeSortingMap() {
+            setTimeout(() => {
+                if (sortingMap) {
+                    sortingMap.remove();
+                }
+                
+                sortingMap = L.map('sorting-map').setView([currentUser.location.lat, currentUser.location.lng], 13);
+                
+                const streetLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '© OpenStreetMap contributors'
+                });
+                
+                streetLayer.addTo(sortingMap);
+                
+                L.marker([currentUser.location.lat, currentUser.location.lng], {
+                    icon: getMarkerIcon('sorting', currentUser, false)
+                })
+                    .addTo(sortingMap)
+                    .bindPopup(`
+                        <div style="text-align: center; min-width: 150px;">
+                            <div style="font-weight: bold; color: #1f2937; margin-bottom: 4px;">
+                                ${currentUser.fullname}
+                            </div>
+                            <div style="color: #6b7280; font-size: 12px;">
+                                مرکز سورتینگ - موقعیت شما
+                            </div>
+                        </div>
+                    `)
+                    .openPopup();
+                
+                addOtherUsersToMap(sortingMap);
+            }, 100);
+        }
+
+        function initializeDriverMainMap() {
+            setTimeout(() => {
+                if (driverMainMap) {
+                    driverMainMap.remove();
+                }
+                
+                // Get driver's GPS location
+                if (navigator.geolocation) {
+                    navigator.geolocation.getCurrentPosition(
+                        (position) => {
+                            const lat = position.coords.latitude;
+                            const lng = position.coords.longitude;
+                            
+                            // Update driver's location with GPS
+                            currentUser.location = { lat, lng };
+                            updateDriverLocationInStorage();
+                            
+                            createDriverMap(lat, lng);
+                        },
+                        (error) => {
+                            console.log('GPS Error:', error);
+                            // If GPS fails and driver has no saved location, use Tehran center
+                            if (!currentUser.location) {
+                                currentUser.location = { lat: 35.6892, lng: 51.3890 };
+                                updateDriverLocationInStorage();
+                            }
+                            createDriverMap(currentUser.location.lat, currentUser.location.lng);
+                            showToast('دسترسی به موقعیت مکانی ممکن نیست، از موقعیت پیش‌فرض استفاده می‌شود', 'info');
+                        },
+                        {
+                            enableHighAccuracy: true,
+                            timeout: 10000,
+                            maximumAge: 60000
+                        }
+                    );
+                } else {
+                    // If geolocation is not supported
+                    if (!currentUser.location) {
+                        currentUser.location = { lat: 35.6892, lng: 51.3890 };
+                        updateDriverLocationInStorage();
+                    }
+                    createDriverMap(currentUser.location.lat, currentUser.location.lng);
+                    showToast('مرورگر شما از GPS پشتیبانی نمی‌کند', 'error');
+                }
+            }, 100);
+        }
+        
+        function createDriverMap(lat, lng) {
+            driverMainMap = L.map('driver-main-map').setView([lat, lng], 15);
+            
+            const streetLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors'
+            });
+            
+            streetLayer.addTo(driverMainMap);
+            
+            // Add GPS status indicator
+            const gpsIndicator = document.createElement('div');
+            gpsIndicator.className = 'gps-status-indicator';
+            gpsIndicator.innerHTML = '<i class="fas fa-satellite-dish"></i> GPS فعال';
+            document.getElementById('driver-main-map').appendChild(gpsIndicator);
+            
+            // Check if driver is in active mission
+            const isDriverActive = requests.some(r => 
+                r.driverId === currentUser.id && 
+                ['in_progress', 'delivering'].includes(r.status)
+            );
+            
+            L.marker([lat, lng], {
+                icon: getMarkerIcon('driver', currentUser, isDriverActive)
+            })
+                .addTo(driverMainMap)
+                .bindPopup(`
+                    <div style="text-align: center; min-width: 150px;">
+                        <div style="font-weight: bold; color: #1f2937; margin-bottom: 4px;">
+                            ${currentUser.fullname}
+                        </div>
+                        <div style="color: #6b7280; font-size: 12px; margin-bottom: 4px;">
+                            راننده - موقعیت GPS
+                        </div>
+                        <div style="font-size: 11px; color: ${isDriverActive ? '#ef4444' : '#10b981'};">
+                            ${isDriverActive ? '🔴 در ماموریت' : '🟢 آزاد'}
+                        </div>
+                        ${currentUser.emptyBaskets > 0 ? `<div style="font-size: 10px; color: #3b82f6;">سبد خالی: ${currentUser.emptyBaskets}</div>` : ''}
+                        ${currentUser.loadCapacity > 0 ? `<div style="font-size: 10px; color: #10b981;">ظرفیت: ${currentUser.loadCapacity}</div>` : ''}
+                    </div>
+                `)
+                .openPopup();
+            
+            addOtherUsersToMap(driverMainMap);
+            
+            // Start continuous GPS tracking for drivers
+            startDriverGPSTracking();
+        }
+        
+        function updateDriverLocationInStorage() {
+            // Update in users array
+            const userIndex = users.findIndex(u => u.id === currentUser.id);
+            if (userIndex !== -1) {
+                users[userIndex].location = currentUser.location;
+                localStorage.setItem('agritrack_users', JSON.stringify(users));
+            }
+            localStorage.setItem('agritrack_current_user', JSON.stringify(currentUser));
+        }
+        
+        function startDriverGPSTracking() {
+            if (navigator.geolocation) {
+                const watchId = navigator.geolocation.watchPosition(
+                    (position) => {
+                        const lat = position.coords.latitude;
+                        const lng = position.coords.longitude;
+                        
+                        // Update driver's location
+                        currentUser.location = { lat, lng };
+                        updateDriverLocationInStorage();
+                        
+                        // Update map if it exists
+                        if (driverMainMap) {
+                            // Update all markers and refresh map
+                            driverMainMap.eachLayer(function(layer) {
+                                if (layer instanceof L.Marker) {
+                                    driverMainMap.removeLayer(layer);
+                                }
+                            });
+                            
+                            const isDriverActive = requests.some(r => 
+                                r.driverId === currentUser.id && 
+                                ['in_progress', 'delivering'].includes(r.status)
+                            );
+                            
+                            L.marker([lat, lng], {
+                                icon: getMarkerIcon('driver', currentUser, isDriverActive)
+                            })
+                                .addTo(driverMainMap)
+                                .bindPopup(`
+                                    <div style="text-align: center; min-width: 150px;">
+                                        <div style="font-weight: bold; color: #1f2937; margin-bottom: 4px;">
+                                            ${currentUser.fullname}
+                                        </div>
+                                        <div style="color: #6b7280; font-size: 12px; margin-bottom: 4px;">
+                                            راننده - موقعیت GPS
+                                        </div>
+                                        <div style="font-size: 11px; color: ${isDriverActive ? '#ef4444' : '#10b981'};">
+                                            ${isDriverActive ? '🔴 در ماموریت' : '🟢 آزاد'}
+                                        </div>
+                                        ${currentUser.emptyBaskets > 0 ? `<div style="font-size: 10px; color: #3b82f6;">سبد خالی: ${currentUser.emptyBaskets}</div>` : ''}
+                                        ${currentUser.loadCapacity > 0 ? `<div style="font-size: 10px; color: #10b981;">ظرفیت: ${currentUser.loadCapacity}</div>` : ''}
+                                    </div>
+                                `);
+                            
+                            addOtherUsersToMap(driverMainMap);
+                            driverMainMap.setView([lat, lng], driverMainMap.getZoom());
+                        }
+                    },
+                    (error) => {
+                        console.log('GPS Tracking Error:', error);
+                        // Update GPS indicator to show error
+                        const indicator = document.querySelector('.gps-status-indicator');
+                        if (indicator) {
+                            indicator.className = 'gps-status-indicator error';
+                            indicator.innerHTML = '<i class="fas fa-exclamation-triangle"></i> GPS خطا';
+                        }
+                    },
+                    {
+                        enableHighAccuracy: true,
+                        timeout: 15000,
+                        maximumAge: 30000
+                    }
+                );
+                
+                // Store watch ID to clear later if needed
+                currentUser.gpsWatchId = watchId;
+            }
+        }
+
+        function addOtherUsersToMap(map) {
+            users.forEach(user => {
+                if (user.id !== currentUser.id && shouldShowUser(user)) {
+                    // Check if driver is in active mission
+                    const isDriverActive = user.role === 'driver' && 
+                        requests.some(r => r.driverId === user.id && ['in_progress', 'delivering'].includes(r.status));
+                    
+                    const icon = getMarkerIcon(user.role, user, isDriverActive);
+                    L.marker([user.location.lat, user.location.lng], { icon })
+                        .addTo(map)
+                        .bindPopup(`
+                            <div style="text-align: center; min-width: 150px;">
+                                <div style="font-weight: bold; color: #1f2937; margin-bottom: 4px;">
+                                    ${user.fullname}
+                                </div>
+                                <div style="color: #6b7280; font-size: 12px; margin-bottom: 4px;">
+                                    ${getRoleTitle(user.role)}
+                                </div>
+                                ${user.role === 'driver' ? `
+                                    <div style="font-size: 11px; color: ${isDriverActive ? '#ef4444' : '#10b981'};">
+                                        ${isDriverActive ? '🔴 در ماموریت' : '🟢 آزاد'}
+                                    </div>
+                                    ${user.emptyBaskets > 0 ? `<div style="font-size: 10px; color: #3b82f6;">سبد خالی: ${user.emptyBaskets}</div>` : ''}
+                                    ${user.loadCapacity > 0 ? `<div style="font-size: 10px; color: #10b981;">ظرفیت: ${user.loadCapacity}</div>` : ''}
+                                ` : ''}
+                            </div>
+                        `);
+                }
+            });
+        }
+        
+        function shouldShowUser(user) {
+            // Privacy rules: only show relevant users based on current user's role
+            if (currentUser.role === 'greenhouse') {
+                // Greenhouse can see sorting centers and drivers assigned to their requests
+                if (user.role === 'sorting') return true;
+                if (user.role === 'driver') {
+                    return requests.some(r => 
+                        r.greenhouseId === currentUser.id && 
+                        r.driverId === user.id && 
+                        ['assigned', 'in_progress', 'delivering'].includes(r.status)
+                    );
+                }
+                return false;
+            } else if (currentUser.role === 'sorting') {
+                // Sorting center can see all greenhouses and drivers
+                return user.role === 'greenhouse' || user.role === 'driver';
+            } else if (currentUser.role === 'driver') {
+                // Driver can see sorting centers and greenhouses they have missions with
+                if (user.role === 'sorting') return true;
+                if (user.role === 'greenhouse') {
+                    return requests.some(r => 
+                        r.driverId === currentUser.id && 
+                        r.greenhouseId === user.id && 
+                        ['assigned', 'in_progress', 'delivering'].includes(r.status)
+                    );
+                }
+                return false;
+            }
+            return false;
+        }
+
+        function getMarkerIcon(role, user = null, isActive = false) {
+            const icons = {
+                greenhouse: '🏡',
+                sorting: '🏭', 
+                driver: isActive ? '🚛' : '🚚'
+            };
+            
+            const colors = {
+                greenhouse: '#10b981',
+                sorting: '#3b82f6',
+                driver: isActive ? '#ef4444' : '#f59e0b'
+            };
+            
+            const userName = user ? user.fullname : '';
+            const statusText = role === 'driver' ? (isActive ? 'در ماموریت' : 'آزاد') : '';
+            
+            return L.divIcon({
+                className: 'custom-location-marker',
+                html: `
+                    <div style="text-align: center;">
+                        <div style="
+                            background: ${colors[role]}; 
+                            width: 40px; 
+                            height: 40px; 
+                            border-radius: 50%; 
+                            border: 3px solid white; 
+                            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                            font-size: 20px;
+                            margin: 0 auto;
+                            ${isActive ? 'animation: pulse 2s infinite;' : ''}
+                        ">
+                            ${icons[role]}
+                        </div>
+                        ${userName ? `
+                            <div style="
+                                background: white;
+                                padding: 2px 6px;
+                                border-radius: 12px;
+                                font-size: 10px;
+                                font-weight: bold;
+                                color: ${colors[role]};
+                                border: 1px solid ${colors[role]};
+                                margin-top: 2px;
+                                white-space: nowrap;
+                                box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+                            ">
+                                ${userName}
+                                ${statusText ? `<br><span style="font-size: 8px;">${statusText}</span>` : ''}
+                            </div>
+                        ` : ''}
+                    </div>
+                `,
+                iconSize: [60, userName ? 70 : 50],
+                iconAnchor: [30, userName ? 65 : 45]
+            });
+        }
+
+        // Main App Functions
+        function showMainApp() {
+            document.getElementById('role-selection-screen').classList.add('hidden');
+            document.getElementById('auth-screen').classList.add('hidden');
+            document.getElementById('main-app').classList.remove('hidden');
+            
+            // Update user info
+            document.getElementById('user-info').textContent = `${currentUser.fullname} - ${getRoleTitle(currentUser.role)}`;
+            
+            // Show appropriate panel
+            showPanel(currentUser.role);
+            
+            // Load data
+            loadPanelData();
+            updateNotificationBadge();
+            
+            // Initialize maps
+            initializePanelMaps();
+        }
+
+        function getRoleTitle(role) {
+            const titles = {
+                greenhouse: 'گلخانه‌دار',
+                sorting: 'مرکز سورتینگ',
+                driver: 'راننده'
+            };
+            return titles[role] || role;
+        }
+
+        function showPanel(role) {
+            document.querySelectorAll('.panel').forEach(panel => {
+                panel.classList.add('hidden');
+            });
+            document.getElementById(`${role}-panel`).classList.remove('hidden');
+        }
+
+        function loadPanelData() {
+            if (currentUser.role === 'greenhouse') {
+                loadSortingCenters();
+                loadGreenhouseRequests();
+                loadGreenhouseReports();
+            } else if (currentUser.role === 'sorting') {
+                loadSortingRequests();
+                loadAvailableDrivers();
+                loadSortingReports();
+            } else if (currentUser.role === 'driver') {
+                loadDriverStatus();
+                loadDriverRequests();
+                loadDriverReports();
+            }
+        }
+
+        // Greenhouse Functions
+        function loadSortingCenters() {
+            const sortingCenters = users.filter(u => u.role === 'sorting');
+            const select = document.getElementById('sorting-center');
+            select.innerHTML = '<option value="">انتخاب کنید</option>';
+            
+            sortingCenters.forEach(center => {
+                const option = document.createElement('option');
+                option.value = center.id;
+                option.textContent = center.fullname;
+                select.appendChild(option);
+            });
+        }
+
+        function submitRequest(event) {
+            event.preventDefault();
+            
+            const type = document.getElementById('request-type').value;
+            const quantity = parseInt(document.getElementById('request-quantity').value);
+            const sortingCenterId = document.getElementById('sorting-center').value;
+            const description = document.getElementById('request-description').value;
+            
+            const sortingCenter = users.find(u => u.id == sortingCenterId);
+            
+            const newRequest = {
+                id: Date.now(),
+                greenhouseId: currentUser.id,
+                greenhouseName: currentUser.fullname,
+                sortingCenterId: parseInt(sortingCenterId),
+                sortingCenterName: sortingCenter.fullname,
+                type,
+                quantity,
+                description,
+                status: 'pending',
+                createdAt: new Date().toISOString(),
+                location: currentUser.location
+            };
+            
+            requests.push(newRequest);
+            localStorage.setItem('agritrack_requests', JSON.stringify(requests));
+            
+            // Send notification to sorting center
+            addNotification(sortingCenterId, `درخواست جدید از ${currentUser.fullname}`, 'new_request');
+            
+            showToast('درخواست با موفقیت ارسال شد', 'success');
+            event.target.reset();
+            loadGreenhouseRequests();
+        }
+
+        function loadGreenhouseRequests() {
+            const activeRequests = requests.filter(r => 
+                r.greenhouseId === currentUser.id && 
+                ['pending', 'assigned', 'in_progress', 'delivering'].includes(r.status)
+            );
+            
+            const container = document.getElementById('greenhouse-active-requests');
+            
+            if (activeRequests.length === 0) {
+                container.innerHTML = '<p class="text-gray-500 text-center py-8">درخواست فعالی وجود ندارد</p>';
+                return;
+            }
+            
+            container.innerHTML = activeRequests.map(request => `
+                <div class="border border-gray-200 rounded-lg p-4 bg-white shadow-sm">
+                    <div class="flex items-center justify-between mb-3">
+                        <div>
+                            <h4 class="font-semibold text-lg">${request.type === 'empty' ? 'سبد خالی' : 'سبد پر'} - ${request.quantity} عدد</h4>
+                            <p class="text-gray-600 text-sm">به ${request.sortingCenterName}</p>
+                            ${request.description ? `<p class="text-gray-500 text-sm">${request.description}</p>` : ''}
+                        </div>
+                        <span class="px-3 py-1 rounded-full text-sm font-medium ${getStatusClass(request.status)}">
+                            ${getStatusText(request.status)}
+                        </span>
+                    </div>
+                    ${request.driverName ? `
+                        <div class="mt-4 pt-4 border-t border-gray-200 bg-gray-50 rounded-lg p-4">
+                            <div class="flex items-center justify-between mb-3">
+                                <div class="flex items-center">
+                                    <div class="bg-blue-100 p-2 rounded-full ml-3">
+                                        <i class="fas fa-user-tie text-blue-600"></i>
+                                    </div>
+                                    <div>
+                                        <span class="text-gray-800 font-semibold">راننده: ${request.driverName}</span>
+                                        <p class="text-gray-500 text-sm">تلفن: ${getUserPhone(request.driverId)}</p>
+                                    </div>
+                                </div>
+                                <span class="px-3 py-1 rounded-full text-sm font-medium ${getStatusClass(request.status)}">
+                                    ${getStatusText(request.status)}
+                                </span>
+                            </div>
+                            
+                            <div class="mt-4 space-y-3">
+                                ${request.status === 'assigned' ? `
+                                    <div class="flex items-center justify-center bg-blue-100 px-6 py-3 rounded-lg border border-blue-200">
+                                        <div class="w-4 h-4 bg-blue-500 rounded-full pulse-dot ml-3"></div>
+                                        <div class="text-center">
+                                            <div class="text-blue-700 font-medium">راننده در راه است...</div>
+                                            <div class="text-blue-600 text-xs">تخمین زمان رسیدن: ۱۵-۳۰ دقیقه</div>
+                                        </div>
+                                    </div>
+                                ` : ''}
+                                
+
+                                
+                                ${request.status === 'in_progress' && request.type === 'full' ? `
+                                    <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                                        <div class="text-center mb-4">
+                                            <div class="text-blue-700 font-medium mb-2">راننده آماده تحویل گرفتن است</div>
+                                            <div class="text-blue-600 text-sm">محصولات را آماده کرده و تحویل دهید</div>
+                                        </div>
+                                        <div class="flex justify-center">
+                                            <button onclick="confirmPickup(${request.id})" class="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-lg font-semibold transition-all transform hover:scale-105 shadow-lg">
+                                                <i class="fas fa-truck-loading ml-2"></i>
+                                                تحویل دادم
+                                            </button>
+                                        </div>
+                                    </div>
+                                ` : ''}
+                            </div>
+                        </div>
+                    ` : ''}
+                </div>
+            `).join('');
+        }
+
+        function confirmDelivery(requestId) {
+            const request = requests.find(r => r.id === requestId);
+            if (request) {
+                request.status = 'completed';
+                request.completedAt = new Date().toISOString();
+                
+                // Update driver capacity - for empty baskets, driver doesn't get baskets back
+                // The baskets stay with the greenhouse
+                const driver = users.find(u => u.id === request.driverId);
+                if (driver && request.type === 'empty') {
+                    // Driver delivered empty baskets, so they don't get them back
+                    // The empty baskets count should have already been reduced when accepting the request
+                    
+                    // Update in users array
+                    const userIndex = users.findIndex(u => u.id === driver.id);
+                    if (userIndex !== -1) {
+                        users[userIndex] = driver;
+                    }
+                    localStorage.setItem('agritrack_users', JSON.stringify(users));
+                }
+                
+                localStorage.setItem('agritrack_requests', JSON.stringify(requests));
+                
+                // Send notifications
+                addNotification(request.sortingCenterId, `تحویل کامل شد - ${request.greenhouseName}`, 'delivery_completed');
+                addNotification(request.driverId, `ماموریت تکمیل شد`, 'mission_completed');
+                
+                showToast('تحویل با موفقیت تایید شد', 'success');
+                
+                loadGreenhouseRequests();
+                loadGreenhouseReports();
+                
+                // Refresh driver data if current user is the driver
+                if (currentUser && currentUser.id === request.driverId) {
+                    currentUser = driver; // Update current user data
+                    localStorage.setItem('agritrack_current_user', JSON.stringify(currentUser));
+                    loadDriverStatus();
+                    loadDriverActiveMission();
+                }
+                
+                // Refresh available drivers list for sorting centers
+                loadAvailableDrivers();
+            }
+        }
+
+        function confirmPickup(requestId) {
+            const request = requests.find(r => r.id === requestId);
+            if (request) {
+                request.status = 'completed';
+                request.completedAt = new Date().toISOString();
+                
+                // Update driver capacity - restore load capacity
+                const driver = users.find(u => u.id === request.driverId);
+                if (driver) {
+                    driver.loadCapacity += request.quantity;
+                    localStorage.setItem('agritrack_users', JSON.stringify(users));
+                }
+                
+                localStorage.setItem('agritrack_requests', JSON.stringify(requests));
+                
+                // Send notifications
+                addNotification(request.sortingCenterId, `تحویل کامل شد - ${request.greenhouseName}`, 'pickup_completed');
+                addNotification(request.driverId, `ماموریت تکمیل شد`, 'mission_completed');
+                
+                showToast('تحویل با موفقیت تایید شد', 'success');
+                loadGreenhouseRequests();
+                loadGreenhouseReports();
+            }
+        }
+
+        // Sorting Functions
+        function loadSortingRequests() {
+            const pendingRequests = requests.filter(r => 
+                r.sortingCenterId === currentUser.id && 
+                r.status === 'pending'
+            );
+            
+            const container = document.getElementById('sorting-pending-requests');
+            
+            if (pendingRequests.length === 0) {
+                container.innerHTML = '<p class="text-gray-500 text-center py-8">درخواستی در انتظار نیست</p>';
+                return;
+            }
+            
+            container.innerHTML = pendingRequests.map(request => `
+                <div class="border border-yellow-200 bg-yellow-50 rounded-lg p-4">
+                    <div class="flex items-center justify-between mb-3">
+                        <div>
+                            <h4 class="font-semibold">${request.greenhouseName}</h4>
+                            <p class="text-gray-600 text-sm">${request.type === 'empty' ? 'سبد خالی' : 'سبد پر'} - ${request.quantity} عدد</p>
+                            ${request.description ? `<p class="text-gray-500 text-sm">${request.description}</p>` : ''}
+                        </div>
+                        <span class="text-gray-500 text-sm">${formatDate(request.createdAt)}</span>
+                    </div>
+                    <button onclick="autoAssignDriver(${request.id})" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded text-sm">
+                        انتخاب راننده
+                    </button>
+                </div>
+            `).join('');
+        }
+
+        function loadAvailableDrivers() {
+            // Filter drivers who are not currently on a mission
+            const availableDrivers = users.filter(u => 
+                u.role === 'driver' && 
+                !requests.some(r => 
+                    r.driverId === u.id && 
+                    ['assigned', 'in_progress', 'delivering'].includes(r.status)
+                )
+            );
+            
+            const emptyBasketDrivers = availableDrivers.filter(u => u.emptyBaskets > 0);
+            const loadingDrivers = availableDrivers.filter(u => u.loadCapacity > 0 && (!u.emptyBaskets || u.emptyBaskets === 0));
+            
+            // Empty basket drivers
+            const emptyContainer = document.getElementById('empty-basket-drivers');
+            if (emptyBasketDrivers.length === 0) {
+                emptyContainer.innerHTML = '<p class="text-gray-500 text-center py-4">راننده‌ای در دسترس نیست</p>';
+            } else {
+                emptyContainer.innerHTML = emptyBasketDrivers.map(driver => `
+                    <div class="border border-green-200 bg-green-50 rounded-lg p-3">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <h5 class="font-semibold">${driver.fullname}</h5>
+                                <p class="text-gray-600 text-sm">سبد خالی: ${driver.emptyBaskets}</p>
+                                <p class="text-gray-500 text-xs">${driver.phone}</p>
+                            </div>
+                            <span class="text-green-600 text-sm">آماده</span>
+                        </div>
+                    </div>
+                `).join('');
+            }
+            
+            // Loading drivers
+            const loadingContainer = document.getElementById('loading-drivers');
+            if (loadingDrivers.length === 0) {
+                loadingContainer.innerHTML = '<p class="text-gray-500 text-center py-4">راننده‌ای در دسترس نیست</p>';
+            } else {
+                loadingContainer.innerHTML = loadingDrivers.map(driver => `
+                    <div class="border border-blue-200 bg-blue-50 rounded-lg p-3">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <h5 class="font-semibold">${driver.fullname}</h5>
+                                <p class="text-gray-600 text-sm">ظرفیت بارگیری: ${driver.loadCapacity}</p>
+                                <p class="text-gray-500 text-xs">${driver.phone}</p>
+                            </div>
+                            <span class="text-blue-600 text-sm">آماده</span>
+                        </div>
+                    </div>
+                `).join('');
+            }
+        }
+
+        function autoAssignDriver(requestId) {
+            const request = requests.find(r => r.id === requestId);
+            if (!request) return;
+            
+            let availableDrivers = [];
+            
+            if (request.type === 'empty') {
+                // For empty basket requests, find drivers with enough empty baskets
+                availableDrivers = users.filter(u => 
+                    u.role === 'driver' && 
+                    u.emptyBaskets >= request.quantity
+                );
+            } else {
+                // For full basket requests, find drivers with enough loading capacity
+                availableDrivers = users.filter(u => 
+                    u.role === 'driver' && 
+                    u.loadCapacity >= request.quantity
+                );
+            }
+            
+            if (availableDrivers.length === 0) {
+                showToast('راننده مناسبی در دسترس نیست', 'error');
+                return;
+            }
+            
+            // Find closest driver with sufficient capacity
+            const closestDriver = findClosestDriverWithCapacity(availableDrivers, request.location, request.quantity, request.type);
+            
+            if (closestDriver) {
+                assignDriverToRequest(requestId, closestDriver.id);
+                showToast(`درخواست به ${closestDriver.fullname} اختصاص داده شد`, 'success');
+            } else {
+                showToast('راننده مناسبی با ظرفیت کافی یافت نشد', 'error');
+            }
+        }
+
+        function findClosestDriverWithCapacity(drivers, location, quantity, requestType) {
+            let bestDriver = null;
+            let minDistance = Infinity;
+            
+            drivers.forEach(driver => {
+                // Check capacity
+                let hasCapacity = false;
+                if (requestType === 'empty' && driver.emptyBaskets >= quantity) {
+                    hasCapacity = true;
+                } else if (requestType === 'full' && driver.loadCapacity >= quantity) {
+                    hasCapacity = true;
+                }
+                
+                if (hasCapacity) {
+                    const distance = calculateDistance(location, driver.location);
+                    if (distance < minDistance) {
+                        minDistance = distance;
+                        bestDriver = driver;
+                    }
+                }
+            });
+            
+            return bestDriver;
+        }
+
+        function calculateDistance(loc1, loc2) {
+            const R = 6371; // Earth's radius in km
+            const dLat = (loc2.lat - loc1.lat) * Math.PI / 180;
+            const dLon = (loc2.lng - loc1.lng) * Math.PI / 180;
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                Math.cos(loc1.lat * Math.PI / 180) * Math.cos(loc2.lat * Math.PI / 180) *
+                Math.sin(dLon/2) * Math.sin(dLon/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            return R * c;
+        }
+
+        function assignDriverToRequest(requestId, driverId) {
+            const request = requests.find(r => r.id === requestId);
+            const driver = users.find(u => u.id === driverId);
+            
+            if (request && driver) {
+                request.status = 'assigned';
+                request.driverId = driverId;
+                request.driverName = driver.fullname;
+                request.assignedAt = new Date().toISOString();
+                
+                localStorage.setItem('agritrack_requests', JSON.stringify(requests));
+                
+                // Send notification to driver
+                addNotification(driverId, `درخواست جدید از ${request.greenhouseName} - ${request.type === 'empty' ? 'سبد خالی' : 'سبد پر'}: ${request.quantity} عدد`, 'new_assignment');
+                
+                // Send notification to greenhouse
+                addNotification(request.greenhouseId, `راننده ${driver.fullname} برای درخواست شما انتخاب شد`, 'driver_assigned');
+                
+                loadSortingRequests();
+                loadAvailableDrivers();
+            }
+        }
+
+        // Driver Functions
+        function loadDriverStatus() {
+            document.getElementById('driver-empty-baskets-display').textContent = currentUser.emptyBaskets || 0;
+            document.getElementById('driver-load-capacity-display').textContent = currentUser.loadCapacity || 0;
+            document.getElementById('empty-baskets-count').value = currentUser.emptyBaskets || 0;
+            document.getElementById('load-capacity').value = currentUser.loadCapacity || 0;
+            
+            const todayTrips = requests.filter(r => 
+                r.driverId === currentUser.id && 
+                r.status === 'completed' &&
+                new Date(r.completedAt).toDateString() === new Date().toDateString()
+            ).length;
+            
+            document.getElementById('driver-trips-count').textContent = todayTrips;
+        }
+
+        function adjustEmptyBaskets(change) {
+            const input = document.getElementById('empty-baskets-count');
+            const currentValue = parseInt(input.value) || 0;
+            const newValue = Math.max(0, currentValue + change);
+            input.value = newValue;
+        }
+
+        function adjustLoadCapacity(change) {
+            const input = document.getElementById('load-capacity');
+            const currentValue = parseInt(input.value) || 0;
+            const newValue = Math.max(0, currentValue + change);
+            input.value = newValue;
+        }
+
+        function submitDailyStatus() {
+            const emptyBaskets = parseInt(document.getElementById('empty-baskets-count').value) || 0;
+            const loadCapacity = parseInt(document.getElementById('load-capacity').value) || 0;
+            
+            // Update current user
+            currentUser.emptyBaskets = emptyBaskets;
+            currentUser.loadCapacity = loadCapacity;
+            currentUser.dailyStatusSubmitted = true;
+            currentUser.lastStatusUpdate = new Date().toISOString();
+            
+            // Update in users array
+            const userIndex = users.findIndex(u => u.id === currentUser.id);
+            if (userIndex !== -1) {
+                users[userIndex] = currentUser;
+                localStorage.setItem('agritrack_users', JSON.stringify(users));
+                localStorage.setItem('agritrack_current_user', JSON.stringify(currentUser));
+            }
+            
+            // Send notification to all sorting centers
+            const sortingCenters = users.filter(u => u.role === 'sorting');
+            sortingCenters.forEach(center => {
+                const message = emptyBaskets > 0 ? 
+                    `راننده ${currentUser.fullname} - ${emptyBaskets} سبد خالی موجود` :
+                    `راننده ${currentUser.fullname} - ظرفیت بارگیری: ${loadCapacity}`;
+                addNotification(center.id, message, 'driver_status_update');
+            });
+            
+            showToast('وضعیت روزانه با موفقیت ثبت شد', 'success');
+            loadDriverStatus();
+            loadAvailableDrivers(); // Refresh sorting center view
+        }
+
+        function loadDriverRequests() {
+            const pendingRequests = requests.filter(r => 
+                r.driverId === currentUser.id && 
+                r.status === 'assigned'
+            );
+            
+            const container = document.getElementById('driver-pending-requests');
+            
+            if (pendingRequests.length === 0) {
+                container.innerHTML = '<p class="text-gray-500 text-center py-8">درخواستی دریافت نکرده‌اید</p>';
+                return;
+            }
+            
+            container.innerHTML = pendingRequests.map(request => `
+                <div class="border border-blue-200 bg-blue-50 rounded-lg p-4">
+                    <div class="flex items-center justify-between mb-3">
+                        <div>
+                            <h4 class="font-semibold">${request.greenhouseName}</h4>
+                            <p class="text-gray-600 text-sm">${request.type === 'empty' ? 'سبد خالی' : 'سبد پر'} - ${request.quantity} عدد</p>
+                            <p class="text-gray-500 text-sm">مرکز سورتینگ: ${request.sortingCenterName}</p>
+                        </div>
+                        <span class="text-blue-600 text-sm">${formatDate(request.assignedAt)}</span>
+                    </div>
+                    <div class="flex space-x-2 space-x-reverse">
+                        <button onclick="acceptRequest(${request.id})" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded text-sm">
+                            پذیرش
+                        </button>
+                        <button onclick="rejectRequest(${request.id})" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded text-sm">
+                            رد
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function acceptRequest(requestId) {
+            const request = requests.find(r => r.id === requestId);
+            if (request) {
+                // Both empty and full baskets start with in_progress status
+                request.status = 'in_progress';
+                request.acceptedAt = new Date().toISOString();
+                
+                // Update driver capacity
+                if (request.type === 'empty') {
+                    currentUser.emptyBaskets -= request.quantity;
+                } else {
+                    currentUser.loadCapacity -= request.quantity;
+                }
+                
+                localStorage.setItem('agritrack_current_user', JSON.stringify(currentUser));
+                
+                // Update users array
+                const userIndex = users.findIndex(u => u.id === currentUser.id);
+                users[userIndex] = currentUser;
+                localStorage.setItem('agritrack_users', JSON.stringify(users));
+                
+                localStorage.setItem('agritrack_requests', JSON.stringify(requests));
+                
+                // Send notifications
+                addNotification(request.sortingCenterId, `راننده درخواست را پذیرفت - ${currentUser.fullname}`, 'request_accepted');
+                addNotification(request.greenhouseId, `راننده در راه است - ${currentUser.fullname}`, 'driver_on_way');
+                
+                showToast('درخواست پذیرفته شد', 'success');
+                loadDriverRequests();
+                loadDriverActiveMission();
+                loadDriverStatus();
+                showNavigation(request);
+            }
+        }
+
+        function rejectRequest(requestId) {
+            const request = requests.find(r => r.id === requestId);
+            if (request) {
+                request.status = 'pending';
+                delete request.driverId;
+                delete request.driverName;
+                delete request.assignedAt;
+                
+                localStorage.setItem('agritrack_requests', JSON.stringify(requests));
+                
+                // Send notification to sorting center
+                addNotification(request.sortingCenterId, `راننده درخواست را رد کرد - ${currentUser.fullname}`, 'request_rejected');
+                
+                showToast('درخواست رد شد', 'success');
+                loadDriverRequests();
+            }
+        }
+
+        function loadDriverActiveMission() {
+            const activeMission = requests.find(r => 
+                r.driverId === currentUser.id && 
+                ['in_progress', 'delivering'].includes(r.status)
+            );
+            
+            const container = document.getElementById('driver-active-mission');
+            
+            if (!activeMission) {
+                container.innerHTML = '<p class="text-gray-500 text-center py-8">ماموریت فعالی ندارید</p>';
+                document.getElementById('driver-navigation').style.display = 'none';
+                return;
+            }
+            
+            container.innerHTML = `
+                <div class="border border-green-200 bg-green-50 rounded-lg p-4">
+                    <div class="flex items-center justify-between mb-3">
+                        <div>
+                            <h4 class="font-semibold">${activeMission.greenhouseName}</h4>
+                            <p class="text-gray-600 text-sm">${activeMission.type === 'empty' ? 'سبد خالی' : 'سبد پر'} - ${activeMission.quantity} عدد</p>
+                            <p class="text-gray-500 text-sm">مرکز سورتینگ: ${activeMission.sortingCenterName}</p>
+                        </div>
+                        <span class="px-3 py-1 rounded-full text-sm ${getStatusClass(activeMission.status)}">
+                            ${getStatusText(activeMission.status)}
+                        </span>
+                    </div>
+                    <div class="flex flex-wrap gap-2">
+                        <button onclick="openExternalNavigation(${activeMission.location.lat}, ${activeMission.location.lng})" class="route-button text-white px-4 py-2 rounded text-sm">
+                            <i class="fas fa-route ml-1"></i>
+                            مسیریابی خارجی
+                        </button>
+                        <button onclick="toggleInternalNavigation()" class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded text-sm">
+                            <i class="fas fa-map ml-1"></i>
+                            مسیریابی داخلی
+                        </button>
+                        ${activeMission.type === 'empty' && (activeMission.status === 'in_progress' || activeMission.status === 'delivering') ? `
+                            <button onclick="confirmDriverDelivery(${activeMission.id})" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded text-sm">
+                                تحویل دادم
+                            </button>
+                        ` : ''}
+                        ${activeMission.type === 'full' && activeMission.status === 'in_progress' ? `
+                            <button onclick="confirmDriverPickup(${activeMission.id})" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded text-sm">
+                                تحویل گرفتم
+                            </button>
+                        ` : ''}
+                    </div>
+                </div>
+            `;
+        }
+
+        function confirmDriverDelivery(requestId) {
+            const request = requests.find(r => r.id === requestId);
+            if (request) {
+                if (request.type === 'empty') {
+                    // For empty baskets, complete the mission immediately
+                    request.status = 'completed';
+                    request.completedAt = new Date().toISOString();
+                    
+                    // Driver has already given away the empty baskets when accepting the request
+                    // No need to update capacity again
+                    
+                    localStorage.setItem('agritrack_requests', JSON.stringify(requests));
+                    
+                    // Send notifications
+                    addNotification(request.sortingCenterId, `تحویل سبدهای خالی تکمیل شد - ${currentUser.fullname}`, 'delivery_completed');
+                    addNotification(request.greenhouseId, `سبدهای خالی تحویل داده شد - ${currentUser.fullname}`, 'delivery_completed');
+                    
+                    showToast('ماموریت تحویل سبد خالی با موفقیت تکمیل شد', 'success');
+                    
+                    // Stop navigation
+                    if (driverLocationWatcher) {
+                        clearInterval(driverLocationWatcher);
+                        driverLocationWatcher = null;
+                    }
+                    
+                    // Hide navigation
+                    document.getElementById('driver-navigation').style.display = 'none';
+                }
+                
+                loadDriverActiveMission();
+                loadDriverStatus();
+                loadDriverReports();
+                loadAvailableDrivers(); // Refresh sorting center view
+            }
+        }
+
+        function confirmDriverPickup(requestId) {
+            const request = requests.find(r => r.id === requestId);
+            if (request) {
+                request.status = 'completed';
+                request.completedAt = new Date().toISOString();
+                
+                // Update driver capacity - restore load capacity
+                currentUser.loadCapacity += request.quantity;
+                localStorage.setItem('agritrack_current_user', JSON.stringify(currentUser));
+                
+                // Update users array
+                const userIndex = users.findIndex(u => u.id === currentUser.id);
+                users[userIndex] = currentUser;
+                localStorage.setItem('agritrack_users', JSON.stringify(users));
+                
+                localStorage.setItem('agritrack_requests', JSON.stringify(requests));
+                
+                // Send notifications
+                addNotification(request.sortingCenterId, `تحویل کامل شد - ${currentUser.fullname}`, 'delivery_completed');
+                addNotification(request.greenhouseId, `ماموریت تکمیل شد - ${currentUser.fullname}`, 'mission_completed');
+                
+                showToast('ماموریت با موفقیت تکمیل شد', 'success');
+                loadDriverActiveMission();
+                loadDriverStatus();
+                loadDriverReports();
+            }
+        }
+
+        function showNavigation(request) {
+            document.getElementById('driver-navigation').style.display = 'block';
+            
+            // Get current GPS location for navigation
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        const lat = position.coords.latitude;
+                        const lng = position.coords.longitude;
+                        
+                        // Update driver's location with current GPS
+                        currentUser.location = { lat, lng };
+                        updateDriverLocationInStorage();
+                        
+                        createNavigationMap(request, lat, lng);
+                    },
+                    (error) => {
+                        console.log('Navigation GPS Error:', error);
+                        // Use last known location if GPS fails
+                        createNavigationMap(request, currentUser.location.lat, currentUser.location.lng);
+                        showToast('استفاده از آخرین موقعیت شناخته شده برای مسیریابی', 'info');
+                    },
+                    {
+                        enableHighAccuracy: true,
+                        timeout: 10000,
+                        maximumAge: 60000
+                    }
+                );
+            } else {
+                createNavigationMap(request, currentUser.location.lat, currentUser.location.lng);
+            }
+        }
+        
+        function createNavigationMap(request, lat, lng) {
+            setTimeout(() => {
+                if (driverMap) {
+                    driverMap.remove();
+                }
+                
+                driverMap = L.map('driver-map').setView([lat, lng], 15);
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '© OpenStreetMap contributors'
+                }).addTo(driverMap);
+                
+                // Add driver marker with professional car icon
+                driverLocationMarker = L.marker([lat, lng], {
+                    icon: L.divIcon({
+                        className: 'driver-navigation-marker',
+                        html: `
+                            <div style="text-align: center;">
+                                <div style="
+                                    background: #ef4444; 
+                                    width: 50px; 
+                                    height: 50px; 
+                                    border-radius: 50%; 
+                                    border: 4px solid white; 
+                                    box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+                                    display: flex;
+                                    align-items: center;
+                                    justify-content: center;
+                                    font-size: 24px;
+                                    margin: 0 auto;
+                                    animation: pulse 2s infinite;
+                                ">
+                                    🚛
+                                </div>
+                                <div style="
+                                    background: white;
+                                    padding: 2px 8px;
+                                    border-radius: 12px;
+                                    font-size: 11px;
+                                    font-weight: bold;
+                                    color: #ef4444;
+                                    border: 2px solid #ef4444;
+                                    margin-top: 4px;
+                                    white-space: nowrap;
+                                    box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+                                ">
+                                    ${currentUser.fullname}
+                                    <br><span style="font-size: 9px;">GPS فعال</span>
+                                </div>
+                            </div>
+                        `,
+                        iconSize: [70, 85],
+                        iconAnchor: [35, 80]
+                    })
+                }).addTo(driverMap);
+                
+                // Add destination marker (greenhouse)
+                const greenhouse = users.find(u => u.id === request.greenhouseId);
+                L.marker([request.location.lat, request.location.lng], {
+                    icon: L.divIcon({
+                        className: 'destination-marker',
+                        html: `
+                            <div style="text-align: center;">
+                                <div style="
+                                    background: #10b981; 
+                                    width: 45px; 
+                                    height: 45px; 
+                                    border-radius: 50%; 
+                                    border: 3px solid white; 
+                                    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+                                    display: flex;
+                                    align-items: center;
+                                    justify-content: center;
+                                    font-size: 22px;
+                                    margin: 0 auto;
+                                ">
+                                    🏡
+                                </div>
+                                <div style="
+                                    background: white;
+                                    padding: 2px 6px;
+                                    border-radius: 12px;
+                                    font-size: 10px;
+                                    font-weight: bold;
+                                    color: #10b981;
+                                    border: 1px solid #10b981;
+                                    margin-top: 2px;
+                                    white-space: nowrap;
+                                    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+                                ">
+                                    ${greenhouse ? greenhouse.fullname : 'گلخانه'}
+                                    <br><span style="font-size: 8px;">مقصد</span>
+                                </div>
+                            </div>
+                        `,
+                        iconSize: [65, 75],
+                        iconAnchor: [32, 70]
+                    })
+                }).addTo(driverMap);
+                
+                // Start GPS-based navigation
+                startGPSNavigation(request);
+                
+                // Fit bounds to show both markers with padding
+                const group = new L.featureGroup([
+                    driverLocationMarker,
+                    L.marker([request.location.lat, request.location.lng])
+                ]);
+                driverMap.fitBounds(group.getBounds().pad(0.15));
+            }, 100);
+        }
+
+        function startGPSNavigation(request) {
+            // Clear any existing watcher
+            if (driverLocationWatcher) {
+                if (typeof driverLocationWatcher === 'number') {
+                    clearInterval(driverLocationWatcher);
+                } else {
+                    navigator.geolocation.clearWatch(driverLocationWatcher);
+                }
+            }
+            
+            // Start real GPS tracking for navigation
+            if (navigator.geolocation) {
+                driverLocationWatcher = navigator.geolocation.watchPosition(
+                    (position) => {
+                        const lat = position.coords.latitude;
+                        const lng = position.coords.longitude;
+                        
+                        // Update driver's location with real GPS
+                        currentUser.location = { lat, lng };
+                        updateDriverLocationInStorage();
+                        
+                        // Update navigation map
+                        updateNavigationPosition(request);
+                        updateLastUpdateTime();
+                    },
+                    (error) => {
+                        console.log('Navigation GPS Error:', error);
+                        // Fallback to simulation if GPS fails
+                        startSimulatedNavigation(request);
+                    },
+                    {
+                        enableHighAccuracy: true,
+                        timeout: 15000,
+                        maximumAge: 30000
+                    }
+                );
+            } else {
+                // Fallback to simulation if geolocation not supported
+                startSimulatedNavigation(request);
+            }
+        }
+        
+        function startSimulatedNavigation(request) {
+            // Fallback simulation for when GPS is not available
+            driverLocationWatcher = setInterval(() => {
+                simulateRoadBasedMovement(request);
+                updateLastUpdateTime();
+            }, 3000);
+        }
+        
+        function simulateRoadBasedMovement(request) {
+            const currentLat = currentUser.location.lat;
+            const currentLng = currentUser.location.lng;
+            const destLat = request.location.lat;
+            const destLng = request.location.lng;
+            
+            // Calculate distance to destination
+            const distance = calculateDistance(currentUser.location, request.location);
+            
+            // If very close to destination, stop movement
+            if (distance < 0.05) {
+                return;
+            }
+            
+            // Calculate direction towards destination
+            const latDiff = destLat - currentLat;
+            const lngDiff = destLng - currentLng;
+            
+            // Normalize direction
+            const totalDiff = Math.sqrt(latDiff * latDiff + lngDiff * lngDiff);
+            const normalizedLatDiff = latDiff / totalDiff;
+            const normalizedLngDiff = lngDiff / totalDiff;
+            
+            // Realistic road-based movement speed
+            let moveSpeed = distance > 2 ? 0.0015 : distance > 0.5 ? 0.0008 : 0.0003;
+            
+            // Add road-like curves and turns to simulate following actual roads
+            const time = Date.now() / 5000;
+            const roadCurveX = Math.sin(time) * 0.0003;
+            const roadCurveY = Math.cos(time * 1.3) * 0.0002;
+            
+            // Add some randomness to simulate traffic and road conditions
+            const trafficDelay = Math.random() > 0.8 ? 0.5 : 1; // Sometimes slower due to traffic
+            const actualSpeed = moveSpeed * trafficDelay;
+            
+            // Calculate new position following road patterns
+            const newLat = currentLat + (normalizedLatDiff * actualSpeed) + roadCurveX;
+            const newLng = currentLng + (normalizedLngDiff * actualSpeed) + roadCurveY;
+            
+            currentUser.location.lat = newLat;
+            currentUser.location.lng = newLng;
+            
+            updateDriverPosition(request);
+        }
+
+
+
+        function updateNavigationPosition(request) {
+            if (driverLocationMarker && driverMap) {
+                // Smooth animation to new position
+                driverLocationMarker.setLatLng([currentUser.location.lat, currentUser.location.lng]);
+                
+                // Center map on driver location with smooth pan
+                driverMap.panTo([currentUser.location.lat, currentUser.location.lng]);
+                
+                // Update route
+                updateRoute(request);
+            }
+        }
+        
+        function updateDriverPosition(request) {
+            if (driverLocationMarker && driverMap) {
+                // Smooth animation to new position
+                driverLocationMarker.setLatLng([currentUser.location.lat, currentUser.location.lng]);
+                
+                // Center map on driver location with smooth pan
+                driverMap.panTo([currentUser.location.lat, currentUser.location.lng]);
+                
+                // Update route
+                updateRoute(request);
+                
+                // Save updated location
+                const userIndex = users.findIndex(u => u.id === currentUser.id);
+                if (userIndex !== -1) {
+                    users[userIndex].location = currentUser.location;
+                    localStorage.setItem('agritrack_users', JSON.stringify(users));
+                    localStorage.setItem('agritrack_current_user', JSON.stringify(currentUser));
+                }
+            }
+        }
+
+
+
+        function updateLastUpdateTime() {
+            const timeElement = document.getElementById('last-update-time');
+            if (timeElement) {
+                const now = new Date();
+                timeElement.textContent = now.toLocaleTimeString('fa-IR', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit'
+                });
+            }
+        }
+
+        function updateRoute(request) {
+            // Remove existing route line
+            driverMap.eachLayer(function(layer) {
+                if (layer instanceof L.Polyline && layer.options.className === 'route-line') {
+                    driverMap.removeLayer(layer);
+                }
+            });
+            
+            // Calculate distance
+            const distance = calculateDistance(currentUser.location, request.location);
+            const distanceKm = distance.toFixed(2);
+            
+            // Draw animated route line
+            const routeLine = L.polyline([
+                [currentUser.location.lat, currentUser.location.lng],
+                [request.location.lat, request.location.lng]
+            ], {
+                color: '#3b82f6',
+                weight: 5,
+                opacity: 0.8,
+                dashArray: '15, 10',
+                className: 'route-line'
+            }).addTo(driverMap);
+            
+            // Add distance popup to route line
+            const midPoint = [
+                (currentUser.location.lat + request.location.lat) / 2,
+                (currentUser.location.lng + request.location.lng) / 2
+            ];
+            
+            L.popup()
+                .setLatLng(midPoint)
+                .setContent(`
+                    <div class="text-center">
+                        <div class="font-semibold text-blue-600">فاصله تا مقصد</div>
+                        <div class="text-lg font-bold">${distanceKm} کیلومتر</div>
+                        <div class="text-xs text-gray-500">تخمین زمان: ${Math.ceil(distance * 2)} دقیقه</div>
+                    </div>
+                `)
+                .openOn(driverMap);
+            
+            // Animate the dash array for moving effect
+            let dashOffset = 0;
+            const animateRoute = setInterval(() => {
+                dashOffset += 2;
+                if (routeLine._path) {
+                    routeLine._path.style.strokeDashoffset = dashOffset;
+                }
+            }, 100);
+            
+            // Store animation reference to clear later
+            routeLine.animationInterval = animateRoute;
+        }
+
+        function openExternalNavigation(lat, lng) {
+            const userAgent = navigator.userAgent || navigator.vendor || window.opera;
+            
+            // Check if it's iOS
+            if (/iPad|iPhone|iPod/.test(userAgent) && !window.MSStream) {
+                // Try Apple Maps first, fallback to Google Maps
+                const appleUrl = `maps://maps.google.com/maps?daddr=${lat},${lng}&amp;ll=`;
+                const googleUrl = `https://maps.google.com/maps?daddr=${lat},${lng}`;
+                
+                window.open(appleUrl, '_blank');
+                setTimeout(() => {
+                    window.open(googleUrl, '_blank');
+                }, 1000);
+            }
+            // Check if it's Android
+            else if (/android/i.test(userAgent)) {
+                const googleUrl = `https://maps.google.com/maps?daddr=${lat},${lng}`;
+                window.open(googleUrl, '_blank');
+            }
+            // Desktop or other devices
+            else {
+                const googleUrl = `https://maps.google.com/maps?daddr=${lat},${lng}`;
+                window.open(googleUrl, '_blank');
+            }
+            
+            showToast('مسیریابی در اپلیکیشن خارجی باز شد', 'success');
+        }
+
+        function toggleInternalNavigation() {
+            const navSection = document.getElementById('driver-navigation');
+            if (navSection.style.display === 'none') {
+                navSection.style.display = 'block';
+                showToast('مسیریابی داخلی فعال شد', 'success');
+            } else {
+                navSection.style.display = 'none';
+                
+                // Properly stop GPS tracking
+                if (driverLocationWatcher) {
+                    if (typeof driverLocationWatcher === 'number') {
+                        // It's an interval ID
+                        clearInterval(driverLocationWatcher);
+                    } else {
+                        // It's a geolocation watch ID
+                        navigator.geolocation.clearWatch(driverLocationWatcher);
+                    }
+                    driverLocationWatcher = null;
+                }
+                
+                // Clean up map animations
+                if (driverMap) {
+                    driverMap.eachLayer(function(layer) {
+                        if (layer.animationInterval) {
+                            clearInterval(layer.animationInterval);
+                        }
+                    });
+                }
+                
+                showToast('مسیریابی داخلی غیرفعال شد', 'info');
+            }
+        }
+
+        // Report Functions
+        function loadGreenhouseReports() {
+            const userRequests = requests.filter(r => r.greenhouseId === currentUser.id);
+            const tbody = document.getElementById('greenhouse-reports-body');
+            
+            if (userRequests.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" class="px-4 py-8 text-center text-gray-500">گزارشی وجود ندارد</td></tr>';
+                return;
+            }
+            
+            tbody.innerHTML = userRequests.map(request => `
+                <tr class="border-b">
+                    <td class="px-4 py-2">${formatDate(request.createdAt)}</td>
+                    <td class="px-4 py-2">${request.type === 'empty' ? 'سبد خالی' : 'سبد پر'}</td>
+                    <td class="px-4 py-2">${request.quantity}</td>
+                    <td class="px-4 py-2">${request.driverName || '-'}</td>
+                    <td class="px-4 py-2">
+                        <span class="px-2 py-1 rounded-full text-xs ${getStatusClass(request.status)}">
+                            ${getStatusText(request.status)}
+                        </span>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function loadSortingReports() {
+            const centerRequests = requests.filter(r => r.sortingCenterId === currentUser.id);
+            const tbody = document.getElementById('sorting-reports-body');
+            
+            if (centerRequests.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" class="px-4 py-8 text-center text-gray-500">گزارشی وجود ندارد</td></tr>';
+                return;
+            }
+            
+            tbody.innerHTML = centerRequests.map(request => `
+                <tr class="border-b">
+                    <td class="px-4 py-2">${formatDate(request.createdAt)}</td>
+                    <td class="px-4 py-2">${request.greenhouseName}</td>
+                    <td class="px-4 py-2">${request.driverName || '-'}</td>
+                    <td class="px-4 py-2">${request.type === 'empty' ? 'سبد خالی' : 'سبد پر'}</td>
+                    <td class="px-4 py-2">${request.quantity}</td>
+                    <td class="px-4 py-2">
+                        <span class="px-2 py-1 rounded-full text-xs ${getStatusClass(request.status)}">
+                            ${getStatusText(request.status)}
+                        </span>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function loadDriverReports() {
+            const driverRequests = requests.filter(r => r.driverId === currentUser.id);
+            const tbody = document.getElementById('driver-reports-body');
+            
+            if (driverRequests.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" class="px-4 py-8 text-center text-gray-500">گزارشی وجود ندارد</td></tr>';
+                return;
+            }
+            
+            tbody.innerHTML = driverRequests.map(request => `
+                <tr class="border-b">
+                    <td class="px-4 py-2">${formatDate(request.createdAt)}</td>
+                    <td class="px-4 py-2">${request.greenhouseName}</td>
+                    <td class="px-4 py-2">${request.type === 'empty' ? 'سبد خالی' : 'سبد پر'}</td>
+                    <td class="px-4 py-2">${request.quantity}</td>
+                    <td class="px-4 py-2">
+                        <span class="px-2 py-1 rounded-full text-xs ${getStatusClass(request.status)}">
+                            ${getStatusText(request.status)}
+                        </span>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        // Download Functions
+        function downloadGreenhouseReport() {
+            const userRequests = requests.filter(r => r.greenhouseId === currentUser.id);
+            downloadCSV(userRequests, `greenhouse_report_${currentUser.username}_${new Date().toISOString().split('T')[0]}.csv`);
+        }
+
+        function downloadSortingReport() {
+            const centerRequests = requests.filter(r => r.sortingCenterId === currentUser.id);
+            downloadCSV(centerRequests, `sorting_report_${currentUser.username}_${new Date().toISOString().split('T')[0]}.csv`);
+        }
+
+        function downloadDriverReport() {
+            const driverRequests = requests.filter(r => r.driverId === currentUser.id);
+            downloadCSV(driverRequests, `driver_report_${currentUser.username}_${new Date().toISOString().split('T')[0]}.csv`);
+        }
+
+        function downloadCSV(data, filename) {
+            const headers = ['تاریخ', 'گلخانه', 'راننده', 'نوع', 'تعداد', 'وضعیت'];
+            const csvContent = [
+                headers.join(','),
+                ...data.map(row => [
+                    formatDate(row.createdAt),
+                    row.greenhouseName,
+                    row.driverName || '-',
+                    row.type === 'empty' ? 'سبد خالی' : 'سبد پر',
+                    row.quantity,
+                    getStatusText(row.status)
+                ].join(','))
+            ].join('\n');
+            
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = filename;
+            link.click();
+        }
+
+        // Notification Functions
+        function addNotification(userId, message, type) {
+            const notification = {
+                id: Date.now(),
+                userId: parseInt(userId),
+                message,
+                type,
+                read: false,
+                createdAt: new Date().toISOString()
+            };
+            
+            notifications.push(notification);
+            localStorage.setItem('agritrack_notifications', JSON.stringify(notifications));
+            
+            if (currentUser && currentUser.id === parseInt(userId)) {
+                updateNotificationBadge();
+            }
+        }
+
+        function updateNotificationBadge() {
+            const unreadCount = notifications.filter(n => 
+                n.userId === currentUser.id && !n.read
+            ).length;
+            
+            const badge = document.getElementById('notification-badge');
+            if (unreadCount > 0) {
+                badge.textContent = unreadCount;
+                badge.classList.remove('hidden');
+            } else {
+                badge.classList.add('hidden');
+            }
+        }
+
+        function showNotifications() {
+            const userNotifications = notifications.filter(n => n.userId === currentUser.id);
+            const container = document.getElementById('notifications-list');
+            
+            if (userNotifications.length === 0) {
+                container.innerHTML = '<p class="text-gray-500 text-center py-4">اعلانی وجود ندارد</p>';
+            } else {
+                container.innerHTML = userNotifications.reverse().map(notification => `
+                    <div class="p-3 border rounded-lg ${notification.read ? 'bg-gray-50' : 'bg-blue-50'}">
+                        <p class="text-sm">${notification.message}</p>
+                        <p class="text-xs text-gray-500 mt-1">${formatDate(notification.createdAt)}</p>
+                    </div>
+                `).join('');
+                
+                // Mark as read
+                notifications.forEach(n => {
+                    if (n.userId === currentUser.id) {
+                        n.read = true;
+                    }
+                });
+                localStorage.setItem('agritrack_notifications', JSON.stringify(notifications));
+                updateNotificationBadge();
+            }
+            
+            document.getElementById('notification-modal').classList.remove('hidden');
+        }
+
+        function closeNotifications() {
+            document.getElementById('notification-modal').classList.add('hidden');
+        }
+
+        // Utility Functions
+        function getStatusClass(status) {
+            const classes = {
+                pending: 'bg-yellow-100 text-yellow-800',
+                assigned: 'bg-blue-100 text-blue-800',
+                in_progress: 'bg-green-100 text-green-800',
+                picked_up: 'bg-purple-100 text-purple-800',
+                completed: 'bg-gray-100 text-gray-800'
+            };
+            return classes[status] || 'bg-gray-100 text-gray-800';
+        }
+
+        function getStatusText(status) {
+            const texts = {
+                pending: 'در انتظار',
+                assigned: 'اختصاص داده شده',
+                in_progress: 'در حال انجام',
+                delivering: 'در حال تحویل',
+                picking_up: 'در حال بارگیری',
+                picked_up: 'بارگیری شده',
+                completed: 'تکمیل شده'
+            };
+            return texts[status] || status;
+        }
+
+        function getUserPhone(userId) {
+            const user = users.find(u => u.id === userId);
+            return user ? user.phone : '-';
+        }
+
+        function formatDate(dateString) {
+            const date = new Date(dateString);
+            return date.toLocaleDateString('fa-IR') + ' ' + date.toLocaleTimeString('fa-IR', {
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        }
+
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toast');
+            const toastMessage = document.getElementById('toast-message');
+            
+            toastMessage.textContent = message;
+            
+            // Update toast style based on type
+            toast.className = `fixed top-4 left-4 px-6 py-3 rounded-lg shadow-lg notification-slide z-50 ${
+                type === 'error' ? 'bg-red-500' : 
+                type === 'info' ? 'bg-blue-500' : 'bg-green-500'
+            } text-white`;
+            
+            toast.classList.remove('hidden');
+            
+            setTimeout(() => {
+                toast.classList.add('hidden');
+            }, 3000);
+        }
+
+        // Auto-refresh data every 30 seconds
+        setInterval(() => {
+            if (currentUser) {
+                loadPanelData();
+                updateNotificationBadge();
+            }
+        }, 30000);
+    </script>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'976965c306c2d412',t:'MTc1NjQ0MjcxMS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>
